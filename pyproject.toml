@@ -1,0 +1,6 @@
+[tool.ruff]
+extend-exclude = ["*.ipynb"]
+
+[tool.pytest.ini_options]
+testpaths = ["albalat/tests/"]
+python_files = ["test_*.py"]

@@ -1,0 +1,20 @@
+#data
+processed/*
+interim/*
+raw/*
+*npy
+*parquet
+
+#wand
+.wandb/
+
+#python cache
+__pycache__/
+*py[cod]
+
+#notebook
+.ipynb_checkpoints/
+
+#virtual envs
+.venv/
+venv/
