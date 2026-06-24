@@ -252,25 +252,17 @@ class TestBooksToParagraphs:
 
     def test_save_dataframe(self):
         df = pd.DataFrame.from_dict({"test": [1] * 4})
-        save_dataframe(df)
+        save_dataframe(df, "metadata_ids.csv")
         has_raised = False
-
-        print("__file__ =", __file__)
-        print("BASE_DIR =", BASE_DIR)
-        print("cwd =", os.getcwd())
         try:
-            df_loaded = pd.read_csv(
-                BASE_DIR / "data" / "interim" / "metadata_ids.csv", index_col=0
-            )
+            df_loaded = pd.read_csv("metadata_ids.csv", index_col=0)
         except FileNotFoundError:
             has_raised = True
-        assert not has_raised, (
-            "The file '../data/interim/metadata_ids.csv' does not exists"
-        )
+        assert not has_raised, "The file 'metadata_ids.csv' does not exists"
         assert df_loaded.equals(df), (
             "The saved and loaded files differ when they should be the same"
         )
-        os.remove(BASE_DIR / "data" / "interim" / "metadata_ids.csv")
+        os.remove("metadata_ids.csv")
 
     def test_filter_hf(self):
         hf_dataset = Dataset.from_dict(

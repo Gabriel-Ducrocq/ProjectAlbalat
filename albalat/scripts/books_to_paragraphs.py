@@ -26,7 +26,7 @@ from pathlib import Path
 from datasets import load_dataset
 
 BASE_DIR = Path(__file__).parent.parent
-
+PATH_TO_METADATA = BASE_DIR / "data" / "interim" / "metadata_ids.csv"
 
 GENRES_KEPT = {
     "novels",
@@ -280,13 +280,14 @@ def merge_and_select_columns(catalog, metadata_hf):
     return merged_catalog_meta_data
 
 
-def save_dataframe(df):
+def save_dataframe(df, path=PATH_TO_METADATA):
     """
     Saves a dataframe at ../data/interim/metadata_ids.csv
     :param df: dataframe of metadata from common_pile/gutenberg-project
+    :param path: path to which we save the dataframe
     :return: None
     """
-    df.to_csv(BASE_DIR / "data" / "interim" / "metadata_ids.csv")
+    df.to_csv(path)
 
 
 def filter_hf_dataset(hf_dataset, values):
