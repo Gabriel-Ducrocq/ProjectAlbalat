@@ -18,3 +18,9 @@ __pycache__/
 #virtual envs
 .venv/
 venv/
+
+#DS store
+.DS_Store
+
+#idea
+.idea/
