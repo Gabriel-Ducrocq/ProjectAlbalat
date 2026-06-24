@@ -254,6 +254,9 @@ class TestBooksToParagraphs:
         df = pd.DataFrame.from_dict({"test": [1] * 4})
         save_dataframe(df)
         has_raised = False
+        print("__file__ =", __file__)
+        print("BASE_DIR =", BASE_DIR)
+        print("cwd =", os.getcwd())
         try:
             df_loaded = pd.read_csv(
                 BASE_DIR / "data" / "interim" / "metadata_ids.csv", index_col=0
