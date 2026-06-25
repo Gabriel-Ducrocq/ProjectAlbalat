@@ -20,6 +20,7 @@ paragraph and colums are:
 """
 
 import re
+import typer
 import pandas as pd
 from tqdm import tqdm
 from pathlib import Path
@@ -357,4 +358,4 @@ def books_to_paragraphs(
 
 
 if __name__ == "__main__":
-    pass
+    typer.run(books_to_paragraphs)
