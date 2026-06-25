@@ -326,14 +326,18 @@ def map_hf_dataset(hf_dataset_filtered, batched=True, num_proc=8, batch_size=128
 
 
 def books_to_paragraphs(
-    streaming=False, languages=["en"], batched=True, num_proc=8, batch_size=128
+    languages=["en"], batched=True, num_proc=8, batch_size=128
 ):
     """
-
-    :return:
+    Defines the entire pipeline to get from raw gutenberg-project books to paragraphs.
+    :param languages: languages to keep in the dataset.
+    :param batched: whether to batch the application of the pipeline
+    :param num_proc: number of processors.
+    :param batch_size: size of the batch for the pipeline.
+    :return: None.
     """
     common_pile_dataset = load_dataset(
-        "common-pile/project_gutenberg", split="train", streaming=streaming
+        "common-pile/project_gutenberg", split="train", streaming=False
     )
     catalog = pd.read_csv(
         "https://www.gutenberg.org/cache/epub/feeds/pg_catalog.csv.gz",
