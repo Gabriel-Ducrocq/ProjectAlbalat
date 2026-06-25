@@ -325,11 +325,12 @@ def map_hf_dataset(hf_dataset_filtered, batched=True, num_proc=8, batch_size=128
     )
 
 
-def books_to_paragraphs(
+def books_to_paragraphs(output_file,
     languages=["en"], batched=True, num_proc=8, batch_size=128
 ):
     """
     Defines the entire pipeline to get from raw gutenberg-project books to paragraphs.
+    :param output_file: string describing the location of the output file
     :param languages: languages to keep in the dataset.
     :param batched: whether to batch the application of the pipeline
     :param num_proc: number of processors.
