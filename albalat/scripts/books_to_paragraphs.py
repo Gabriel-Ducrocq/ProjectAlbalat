@@ -337,6 +337,7 @@ def books_to_paragraphs(output_file,
     :param batch_size: size of the batch for the pipeline.
     :return: None.
     """
+    assert output_file.endswith(".parquet"), "Output file must be in parquet format."
     common_pile_dataset = load_dataset(
         "common-pile/project_gutenberg", split="train", streaming=False
     )
@@ -359,7 +360,7 @@ def books_to_paragraphs(output_file,
     processed_pararaphs = map_hf_dataset(
         common_pile_dataset_filtered, batched, num_proc, batch_size
     )
-    processed_pararaphs.to_parquet("paragraphs.parquet")
+    processed_pararaphs.to_parquet(output_file)
 
 
 if __name__ == "__main__":
