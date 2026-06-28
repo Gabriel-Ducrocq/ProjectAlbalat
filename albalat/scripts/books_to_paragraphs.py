@@ -105,7 +105,7 @@ def extract_metadata_hf(hf_dataset):
     print("Extracting the metadata from the common_pile dataset:")
     for t in tqdm(hf_dataset):
         row = t["metadata"]
-        row.update({"text_id": t["id"]})
+        row.update({"text_id": eval(t["id"])})
         tuples_metadata_id.append(row)
 
     metadata_id = pd.DataFrame.from_dict(tuples_metadata_id)
@@ -126,12 +126,18 @@ def create_metadata_table(merged_catalog_meta_data, language_list=["en"]):
     :param metadata_common_pile: pandas dataframe with the metadata of the common pile dataset
     :return: merged tables, filtered.
     """
+    print("LANGUAGE LIST", language_list)
+    print(type(language_list))
+    print(repr(language_list))
     merged_catalog_meta_data = merged_catalog_meta_data.loc[
         merged_catalog_meta_data.Language.isin(language_list)
     ]
     merged_catalog_meta_data = merged_catalog_meta_data[
         ~merged_catalog_meta_data.Bookshelves.isna()
     ]
+    merged_catalog_meta_data.Bookshelves_bag_of_words = (
+        merged_catalog_meta_data.Bookshelves.apply(get_bookshelves)
+    )
     mask_genres = merged_catalog_meta_data.Bookshelves_bag_of_words.apply(
         keep_on_genre_exclusive
     )
@@ -325,8 +331,12 @@ def map_hf_dataset(hf_dataset_filtered, batched=True, num_proc=8, batch_size=128
     )
 
 
-def books_to_paragraphs(output_file,
-    languages=["en"], batched=True, num_proc=8, batch_size=128
+def books_to_paragraphs(
+    output_file: str,
+    languages: list[str] = ["en"],
+    batched: bool = True,
+    num_proc: int = 8,
+    batch_size: int = 128,
 ):
     """
     Defines the entire pipeline to get from raw gutenberg-project books to paragraphs.
@@ -348,9 +358,6 @@ def books_to_paragraphs(output_file,
     metadata_hf = extract_metadata_hf(common_pile_dataset)
     save_dataframe(metadata_hf)
     merged_catalog_meta_data = merge_and_select_columns(catalog, metadata_hf)
-    merged_catalog_meta_data.Bookshelves_bag_of_words = (
-        merged_catalog_meta_data.Bookshelves.apply(get_bookshelves)
-    )
     kept_books = create_metadata_table(
         merged_catalog_meta_data, language_list=languages
     )

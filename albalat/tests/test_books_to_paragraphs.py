@@ -24,7 +24,7 @@ BASE_DIR = Path(__file__).parent.parent
 class TestBooksToParagraphs:
     def test_metadata_extractor(self):
         fake_data = {
-            "id": [0, 1, 2, 3],
+            "id": ["0", "1", "2", "3"],
             "metadata": [
                 {"language": "en", "url": "test"},
                 {"language": "fr", "url": "test"},

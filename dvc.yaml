@@ -1,0 +1,6 @@
+stages:
+  books_to_paragraphs:
+    cmd: python albalat/scripts/books_to_paragraphs.py 
+      albalat/data/interim/paragraphs.parquet
+    outs:
+    - albalat/data/interim/paragraphs.parquet
