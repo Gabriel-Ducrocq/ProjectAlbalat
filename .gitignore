@@ -1,7 +1,4 @@
 #data
-processed/*
-interim/*
-raw/*
 *npy
 *parquet
 

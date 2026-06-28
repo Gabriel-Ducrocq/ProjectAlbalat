@@ -4,3 +4,4 @@ stages:
       albalat/data/interim/paragraphs.parquet
     outs:
     - albalat/data/interim/paragraphs.parquet
+    - albalat/data/interim/metadata_ids.csv 
