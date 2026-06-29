@@ -126,9 +126,6 @@ def create_metadata_table(merged_catalog_meta_data, language_list=["en"]):
     :param metadata_common_pile: pandas dataframe with the metadata of the common pile dataset
     :return: merged tables, filtered.
     """
-    print("LANGUAGE LIST", language_list)
-    print(type(language_list))
-    print(repr(language_list))
     merged_catalog_meta_data = merged_catalog_meta_data.loc[
         merged_catalog_meta_data.Language.isin(language_list)
     ]
@@ -367,6 +364,10 @@ def books_to_paragraphs(
     processed_pararaphs = map_hf_dataset(
         common_pile_dataset_filtered, batched, num_proc, batch_size
     )
+    processed_pararaphs = processed_pararaphs.map(lambda batch, idx: {"paragraphs_index": idx,
+                                                                      "n_words":[len(p.split()) for p in batch["paragraphs"]]},
+                                                  with_indices=True, batched=True, num_proc=16,
+                                batch_size=256)
     processed_pararaphs.to_parquet(output_file)
 
 
