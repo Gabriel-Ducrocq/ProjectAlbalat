@@ -304,7 +304,7 @@ def filter_hf_dataset(hf_dataset, values):
     return hf_dataset.filter(lambda x: eval(x["id"]) in values)
 
 
-def map_hf_dataset(hf_dataset_filtered, batched=True, num_proc=8, batch_size=128):
+def map_hf_dataset(hf_dataset_filtered, batched=True, num_proc=16, batch_size=256):
     """
     Applies the map_pipeline function to the filtered HF dataset to split the books into paragraphs. Each paragraphs
     have 5 fields:
@@ -334,6 +334,7 @@ def books_to_paragraphs(
     batched: bool = True,
     num_proc: int = 8,
     batch_size: int = 128,
+    streaming: bool = True
 ):
     """
     Defines the entire pipeline to get from raw gutenberg-project books to paragraphs.
@@ -346,7 +347,7 @@ def books_to_paragraphs(
     """
     assert output_file.endswith(".parquet"), "Output file must be in parquet format."
     common_pile_dataset = load_dataset(
-        "common-pile/project_gutenberg", split="train", streaming=False
+        "common-pile/project_gutenberg", split="train", streaming=streaming
     )
     catalog = pd.read_csv(
         "https://www.gutenberg.org/cache/epub/feeds/pg_catalog.csv.gz",
@@ -361,13 +362,22 @@ def books_to_paragraphs(
     common_pile_dataset_filtered = filter_hf_dataset(
         common_pile_dataset, kept_books.text_id.values
     )
-    processed_pararaphs = map_hf_dataset(
-        common_pile_dataset_filtered, batched, num_proc, batch_size
-    )
-    processed_pararaphs = processed_pararaphs.map(lambda batch, idx: {"paragraphs_index": idx,
-                                                                      "n_words":[len(p.split()) for p in batch["paragraphs"]]},
-                                                  with_indices=True, batched=True, num_proc=16,
-                                batch_size=256)
+    if not streaming:
+        processed_pararaphs = map_hf_dataset(
+            common_pile_dataset_filtered, batched, num_proc, batch_size
+        )
+        processed_pararaphs = processed_pararaphs.map(lambda batch, idx: {"paragraphs_index": idx,
+                                                                          "n_words":[len(p.split()) for p in batch["paragraphs"]]},
+                                                      with_indices=True, batched=True, num_proc=16,
+                                    batch_size=256)
+    else:
+        processed_pararaphs = map_hf_dataset(
+            common_pile_dataset_filtered
+        )
+        processed_pararaphs = processed_pararaphs.map(lambda batch, idx: {"paragraphs_index": idx,
+                                                                          "n_words":[len(p.split()) for p in batch["paragraphs"]]},
+                                                      with_indices=True)
+
     processed_pararaphs.to_parquet(output_file)
 
 

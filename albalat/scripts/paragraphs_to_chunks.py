@@ -344,11 +344,6 @@ def paragraphs_to_chunks(hf_dataset: str, hf_output: str, max_p_length: int, thr
     :return: None.
     """
     dataset_paragraphs = load_dataset("parquet", data_files=hf_dataset, split="train")
-    dataset_paragraphs = Dataset.from_dict(dataset_paragraphs[:100000])
-    dataset_paragraphs = dataset_paragraphs.map(lambda batch, idx: {"paragraphs_index": idx,
-                                                                    "n_words": [len(p.split()) for p in batch["paragraphs"]]},
-                                                with_indices=True, batched=True, num_proc=16, batch_size=256)
-    print(dataset_paragraphs)
     aggregated_paragraphs = aggregate_paragraphs(dataset_paragraphs, threshold_min)
     chunks = aggregated_paragraphs.map(break_paragraphs, batched=batched, batch_size = batch_size, num_proc= num_proc,
                                        fn_kwargs={"max_p_length": max_p_length})

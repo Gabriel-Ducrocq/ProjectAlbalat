@@ -4,4 +4,13 @@ stages:
       albalat/data/interim/paragraphs.parquet
     outs:
     - albalat/data/interim/paragraphs.parquet
-    - albalat/data/interim/metadata_ids.csv 
+    - albalat/data/interim/metadata_ids.csv
+  paragraphs_to_chunks:
+    cmd: python albalat/scripts/paragraphs_to_chunks.py 
+      albalat/data/interim/paragraphs.parquet 
+      albalat/data/processed/chunks.parquet 1500 40
+    deps:
+    - albalat/data/interim/paragraphs.parquet
+    - albalat/scripts/books_to_paragraphs.py
+    outs:
+    - albalat/data/processed/chunks.parquet
