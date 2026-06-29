@@ -10,27 +10,16 @@ from dataclasses import dataclass
 
 @dataclass
 class State:
-    length = 0
-    text = ""
-    text_id = None
-    paragraph_id = None
-    chapter = None
-    span_start = None
-    span_stop = None
-
-def update_data(current_text: str, current_length: int, text_id: int, chapter: str, span_start: int, span_stop: int, data: dict )-> None:
-    """
-    Updates the dictionnary data with the values provided in the arguments.
-    This function does not return anything but has a side effect: modifies the data dictionnary.
-    """
-    data["paragraphs"].append(current_text)
-    data["n_words"].append(current_length)
-    data["text_ids"].append(text_id)
-    data["chapters"].append(chapter)
-    data["spans"].append((span_start, span_stop))
+    length: int = 0
+    text: str = ""
+    text_id: int | None = None
+    paragraph_id: int | None = None
+    chapter: str | None = None
+    span_start: int | None = None
+    span_stop: int | None = None
 
 
-def update_data_tidy(state: State, data: dict )-> None:
+def update_data(state: State, data: dict )-> None:
     """
     Updates the dictionnary data with the values provided in the arguments.
     This function does not return anything but has a side effect: modifies the data dictionnary.
@@ -41,7 +30,7 @@ def update_data_tidy(state: State, data: dict )-> None:
     data["chapters"].append(state.chapter)
     data["spans"].append((state.span_start, state.span_stop))
 
-def reset_tidy(state: State) -> None:
+def reset(state: State) -> None:
     """
     This function reset the internal state of the State object
     :param state: current aggregate state
@@ -62,14 +51,8 @@ def flush_aggregate(state: State, data: dict) -> None:
     :param data: data dictionnary containing the content of the previous aggregates
     :return: None
     """
-    update_data_tidy(state, data)
-    reset_tidy(state)
-
-def reset():
-    """
-    Reset values to None, None, "", 0 for span_start, span_stop, current_text, current_length
-    """
-    return None, None, "", 0
+    update_data(state, data)
+    reset(state)
 
 
 def set_state(paragraph: dict, state: State) -> None:
@@ -113,8 +96,8 @@ def start_new_aggregate(current_state: State, new_state: State, data: dict, thre
     if current_state.text != "":
         flush_aggregate(current_state, data)
     if new_state.length >= threshold_min:
-        update_data_tidy(new_state, data)
-        reset_tidy(current_state)
+        update_data(new_state, data)
+        reset(current_state)
     else:
         if current_state.text == "":
             current_state.text = paragraph["paragraphs"]
@@ -152,11 +135,7 @@ def continue_aggregate(current_state: State, new_state: State, data: dict, thres
     if current_state.length >= threshold_min:
         flush_aggregate(current_state, data)
 
-
-
-
-
-def aggregate_paragraphs_tidy(hf_dataset: Dataset, threshold_min: int) -> Dataset:
+def aggregate_paragraphs(hf_dataset: Dataset, threshold_min: int) -> Dataset:
     """
     Aggregate the paragraphs together so that they have at least threshold_min words, according to the following rule:
     - Paragraphs are aggregated in order of appearance in the text.
@@ -191,102 +170,32 @@ def aggregate_paragraphs_tidy(hf_dataset: Dataset, threshold_min: int) -> Datase
     return data
 
 
-
-
-
-
-def aggregate_paragraphs(hf_dataset: Dataset, threshold_min: int) -> Dataset:
-    """
-    Aggregate the paragraphs together so that they have at least threshold_min words, according to the following rule:
-    - Paragraphs are aggregated in order of appearance in the text.
-    - Two paragraphs not belonging to the same book cannot be aggregated together.
-    - Two paragraphs not belonging to the same chapter cannot be aggregated together.
-    - We aggregate paragraphs until this aggregate has more than threshold_min_words. As a result, if the aggregate has
-        less than threshold_min_words but the next paragraphs has more than threshold_min_words, thi paragraph is still
-        aggregated.
-    - A paragraph that has more than threshold_min_words does not trigger aggregation of the subsequent paragraph.
-        Therefore, it stays untouched, unless it is aggregated to the previous one.
-    :param hf_dataset, the dataset to aggregate. Should have at least columns:
-            ["text_ids", "index", "paragraphs", "n_words", "spans"]
-    :param threshold_min: integer, minimum number of words in the paragraph.
-    """
-    data = {col_num :[] for col_num in hf_dataset.features.keys() if col_num != "paragraph_index"}
-    current_length = 0
-    current_text = ""
-    text_id = None
-    paragraph_id = None
-    chapter = None
-    current_span_start = None
-    current_span_stop = None
-    for paragraph in tqdm(hf_dataset):
-        text_id_new = paragraph["text_ids"]
-        paragraph_id_new = paragraph["paragraph_index"]
-        chapter_new = paragraph["chapters"]
-        text_new = paragraph["paragraphs"]
-        length_new = paragraph["n_words"]
-        if current_span_start is None:
-            current_span_start = paragraph["spans"][0]
-            current_span_stop = paragraph["spans"][1]
-
-        new_span_start = paragraph["spans"][0]
-        new_span_stop = paragraph["spans"][1]
-        if ((text_id != text_id_new and text_id is not None) or
-                ((paragraph_id_new - 1) != paragraph_id and paragraph_id is not None) or
-                (chapter != chapter_new)):
-            if current_text != "":
-                update_data(current_text, current_length, text_id, chapter, current_span_start, current_span_stop, data)
-                current_span_start, current_span_stop, current_text, current_length = reset()
-            if length_new >= threshold_min:
-                update_data(text_new, length_new, text_id_new, chapter_new, new_span_start, new_span_stop, data)
-                current_span_start, current_span_stop, current_text, current_length = reset()
-            else:
-                if current_text == "":
-                    current_text = paragraph["paragraphs"]
-                else:
-                    current_text = "\n\n".join([current_text, paragraph["paragraphs"]])
-
-                current_length += length_new
-                text_id = text_id_new
-                paragraph_id = paragraph_id_new
-                chapter = chapter_new
-                current_span_start = new_span_start
-                current_span_stop = new_span_stop
-
-
-        else:
-            if current_text == "":
-                current_text = paragraph["paragraphs"]
-            else:
-                current_text = "\n\n".join([current_text, paragraph["paragraphs"]])
-
-            current_length += length_new
-            text_id = text_id_new
-            paragraph_id = paragraph_id_new
-            chapter = chapter_new
-            current_span_stop = new_span_stop
-            if current_length >= threshold_min:
-                update_data(current_text, current_length, text_id, chapter, current_span_start, current_span_stop, data)
-                current_span_start, current_span_stop, current_text, current_length = reset()
-
-    if current_text != "":
-        update_data(current_text, current_length, text_id, chapter, current_span_start, current_span_stop, data)
-
-
-    return data
-
-
-
 data = {"paragraphs":["hhb"], "n_words":[1, 2, 3], "text_ids":[], "chapters":[], "spans":[(0, 10)]}
 data_expected = {"paragraphs":["hhb", "aaa"], "n_words":[1, 2, 3, 10], "text_ids":[1],
                  "chapters":["A"], "spans":[(0, 10), (35, 50)]}
-update_data("aaa", 10, 1, "A", 35,50, data)
+
+test_state = State()
+test_state.length = 10
+test_state.text = "aaa"
+test_state.paragraph_id = 10
+test_state.text_id = 1
+test_state.chapter = "A"
+test_state.span_start = 35
+test_state.span_stop = 50
+update_data(test_state, data)
 assert data_expected == data, f"""The updating data does not output the correct dictionnary. 
                                         Expected: {data_expected} \n
                                         Recovered: {data}"""
 
+reset(test_state)
+expected_state = State()
+expected_state.paragraph_id = 10
+expected_state.text_id = 1
+expected_state.chapter = "A"
+assert test_state.__dict__ == expected_state.__dict__, f"""Reset function does not reset properly.\n
+                                                                 Reset state {test_state.__dict__} \n
+                                                                 Expected state {expected_state.__dict__}"""
 
-assert reset() == (None, None, "", 0), f"""Reset function should return {(None, None, "", 0)} but returns
-                                            {reset()}."""
 
 dict_data = {"paragraphs":["This is a test paragraphs.",
                            "and another one",
@@ -320,7 +229,7 @@ expected_data = {"paragraphs":["This is a test paragraphs.\n\nand another one"""
 hf_dataset = Dataset.from_dict(dict_data)
 min_threshold = 6
 #aggregated_dataset = aggregate_paragraphs(hf_dataset, min_threshold)
-aggregated_dataset = aggregate_paragraphs_tidy(hf_dataset, min_threshold)
+aggregated_dataset = aggregate_paragraphs(hf_dataset, min_threshold)
 for column in expected_data.keys():
     assert expected_data[column] == aggregated_dataset[column], f"""Colums {column} wrong:
                                                                     expected: {expected_data[column]}
