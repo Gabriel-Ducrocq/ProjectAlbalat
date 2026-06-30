@@ -1,7 +1,7 @@
 import os
 import pandas as pd
 from pathlib import Path
-from datasets import Dataset
+from datasets import Dataset, IterableDataset
 from albalat.scripts.books_to_paragraphs import (
     extract_metadata_hf,
     get_bookshelves,
@@ -10,12 +10,12 @@ from albalat.scripts.books_to_paragraphs import (
     determine_chapterization,
     normalize_book,
     pipeline,
-    map_pipeline,
+    map_pipeline_batch,
     create_metadata_table,
     merge_and_select_columns,
     save_dataframe,
     filter_hf_dataset,
-    map_hf_dataset,
+    map_hf_dataset
 )
 
 BASE_DIR = Path(__file__).parent.parent
@@ -135,7 +135,7 @@ class TestBooksToParagraphs:
                 "This is a new",
                 "chapter in two paragraphs",
             ],
-            "text_ids": [1, 1, 1, 1],
+            "text_ids": ["1", "1", "1", "1"],
             "spans": [(44, 132), (138, 168), (190, 203), (209, 234)],
             "chapters": ["CHAPTER I", "CHAPTER I", "CHAPTER II", "CHAPTER II"],
         }
@@ -172,11 +172,11 @@ class TestBooksToParagraphs:
                 "chapter in two paragraphs",
             ]
             * 2,
-            "text_ids": [1, 1, 1, 1, 2, 2, 2, 2],
+            "text_ids": ["1", "1", "1", "1", "2", "2", "2", "2"],
             "spans": [(44, 132), (138, 168), (190, 203), (209, 234)] * 2,
             "chapters": ["CHAPTER I", "CHAPTER I", "CHAPTER II", "CHAPTER II"] * 2,
         }
-        all_paragraphs = map_pipeline(sample_batch)
+        all_paragraphs = map_pipeline_batch(sample_batch)
         assert expected_paragraphs["paragraphs"] == all_paragraphs["paragraphs"], (
             "Paragraphs differ"
         )
@@ -280,10 +280,9 @@ class TestBooksToParagraphs:
                                                   filtered: {filtered_pandas}"""
 
     def test_map_hf_dataset(self):
-        ["id", "text", "source", "added", "metadata"]
         hf_dataset = Dataset.from_dict(
             {
-                "id": [0, 0, 1, 1],
+                "id": ["0", "0", "1", "1"],
                 "text": [
                     "This is \n\n CHAPTER I \n\n a text with many \n\n different \xa0 paragraphs \r\n for testing",
                     "Another \n\n I \n\n \n\n different text \xa0 paragraphs \r\n for testing \n\n small",
@@ -298,6 +297,7 @@ class TestBooksToParagraphs:
                 * 2,
             }
         )
+
         expected = Dataset.from_dict(
             {
                 "paragraphs": [
@@ -306,13 +306,27 @@ class TestBooksToParagraphs:
                     "different text paragraphs for testing",
                 ]
                 * 2,
-                "text_ids": [0, 0, 0, 1, 1, 1],
+                "text_ids": ["0", "0", "0", "1", "1", "1"],
                 "spans": [(28, 44), (50, 82), (25, 62)] * 2,
                 "chapters": ["CHAPTER I", "CHAPTER I", "I"] * 2,
             }
         ).to_pandas()
-        mapped_dataset = map_hf_dataset(hf_dataset).to_pandas()
+        mapped_dataset = map_hf_dataset(hf_dataset, streaming=False).to_pandas()
         assert mapped_dataset.equals(
             expected
         ), f"""Mapped and expected dataset do not match. Expected {expected}\n\n
                                                     recovered {mapped_dataset}"""
+
+        hf_dataset_iterable = hf_dataset.to_iterable_dataset()
+        mapped_dataset_iterable = map_hf_dataset(hf_dataset_iterable, streaming=True, batched=True, batch_size=1).to_pandas()
+        print("MAPPED", mapped_dataset_iterable)
+        print("EXPECTED", expected)
+        assert mapped_dataset_iterable.equals(
+            expected
+        ), f"""Mapped and expected IterableDataset do not match. Expected {expected}\n\n
+                                                    recovered {mapped_dataset}"""
+
+
+
+
+

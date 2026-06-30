@@ -123,6 +123,7 @@ def start_new_aggregate(
     """
     if current_state.text != "":
         flush_aggregate(current_state, data)
+
     if new_state.length >= threshold_min:
         update_data(new_state, data)
         reset(current_state)

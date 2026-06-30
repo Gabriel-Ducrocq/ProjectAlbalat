@@ -24,7 +24,7 @@ import typer
 import pandas as pd
 from tqdm import tqdm
 from pathlib import Path
-from datasets import load_dataset
+from datasets import load_dataset, Features, Sequence, Value
 
 BASE_DIR = Path(__file__).parent.parent
 PATH_TO_METADATA = BASE_DIR / "data" / "interim" / "metadata_ids.csv"
@@ -58,6 +58,15 @@ GENRES_KEPT = {
     "frenchliterature",
     "classicsofliterature",
 }
+
+features = Features({
+    "paragraph_index": Sequence(Value("int64")),
+    "text_ids": Sequence(Value("string")),
+    "spans": Sequence(Sequence(Value("int64"))),
+    "chapters": Sequence(Value("string")),
+    "n_words": Sequence(Value("int64")),
+    "paragraphs": Sequence(Value("string"))
+})
 
 BOOKSHELVES_REGEX = re.compile(r"[,;&]")
 PATTERN_CHAPTER = re.compile(
@@ -240,10 +249,10 @@ def pipeline(book, text_id):
                 assert result_search is not None, (
                     f"Cannot find paragraph number {paragraph_num} in original text id {text_id}: {p}"
                 )
-                all_samples["paragraphs"].append(p)
-                all_samples["text_ids"].append(text_id)
+                all_samples["paragraphs"].append(str(p))
+                all_samples["text_ids"].append(str(text_id))
                 all_samples["spans"].append(result_search.span())
-                all_samples["chapters"].append(chapter)
+                all_samples["chapters"].append(str(chapter))
 
     assert len(set([len(v) for k, v in all_samples.items()])) == 1, (
         "All attributes must have the same length."
@@ -251,11 +260,16 @@ def pipeline(book, text_id):
     return all_samples
 
 
-def map_pipeline(sample_batch):
+def map_pipeline_batch(sample_batch):
     """
     Wrapper function apply pipeline to the rows of the Hugging Face dataset.
     """
     batch = {"paragraphs": [], "text_ids": [], "spans": [], "chapters": []}
+    assert isinstance(sample_batch["text"], list), f"""Text field in sampled batch should be a list, currently 
+                                                        {type(sample_batch["text"])}"""
+
+    assert isinstance(sample_batch["id"], list), f"""Id field in sampled batch should be a list, currently 
+                                                        {type(sample_batch["id"])}"""
     for num_sample in range(len(sample_batch["id"])):
         all_samples = pipeline(
             sample_batch["text"][num_sample], int(sample_batch["id"][num_sample])
@@ -304,7 +318,7 @@ def filter_hf_dataset(hf_dataset, values):
     return hf_dataset.filter(lambda x: eval(x["id"]) in values)
 
 
-def map_hf_dataset(hf_dataset_filtered, batched=True, num_proc=16, batch_size=256):
+def map_hf_dataset(hf_dataset_filtered, batched=True, num_proc=16, batch_size=256, streaming=False):
     """
     Applies the map_pipeline function to the filtered HF dataset to split the books into paragraphs. Each paragraphs
     have 5 fields:
@@ -317,15 +331,26 @@ def map_hf_dataset(hf_dataset_filtered, batched=True, num_proc=16, batch_size=25
     :param batched: whether to use the batch version of map.
     :param num_proc: number of processors to use.
     :param batch_size: the number of books in each batch.
+    :param streaming: whether to use streaming mode.
     :return: Hugging face dataset with
     """
-    return hf_dataset_filtered.map(
-        map_pipeline,
+    assert batched == True, "The pipeline only works with batched inputs"
+    if not streaming:
+        return hf_dataset_filtered.map(
+        map_pipeline_batch,
         batched=batched,
         num_proc=num_proc,
         batch_size=batch_size,
         remove_columns=["id", "text", "source", "added", "metadata"],
-    )
+        )
+    else:
+        return hf_dataset_filtered.map(
+            map_pipeline_batch,
+            batched=batched,
+            batch_size=batch_size,
+            remove_columns=["id", "text", "source", "added", "metadata"],
+        )
+
 
 
 def books_to_paragraphs(
@@ -346,9 +371,13 @@ def books_to_paragraphs(
     :return: None.
     """
     assert output_file.endswith(".parquet"), "Output file must be in parquet format."
+    assert streaming or (not streaming and batched), """Either streaming mode is enabled or streaming mode is disabled
+                                                        and batch mode is enabled."""
+
     common_pile_dataset = load_dataset(
         "common-pile/project_gutenberg", split="train", streaming=streaming
     )
+
     catalog = pd.read_csv(
         "https://www.gutenberg.org/cache/epub/feeds/pg_catalog.csv.gz",
         compression="gzip",
@@ -362,6 +391,10 @@ def books_to_paragraphs(
     common_pile_dataset_filtered = filter_hf_dataset(
         common_pile_dataset, kept_books.text_id.values
     )
+    #from datasets import Dataset
+    #common_pile_dataset_filtered = Dataset.from_dict(common_pile_dataset_filtered[10000:10800]).to_iterable_dataset()
+    #common_pile_dataset_filtered = Dataset.from_dict(common_pile_dataset_filtered[10000:10800])
+    #streaming = True
     if not streaming:
         processed_pararaphs = map_hf_dataset(
             common_pile_dataset_filtered, batched, num_proc, batch_size
@@ -372,14 +405,14 @@ def books_to_paragraphs(
                                     batch_size=256)
     else:
         processed_pararaphs = map_hf_dataset(
-            common_pile_dataset_filtered
+            common_pile_dataset_filtered, streaming=streaming
         )
+
         processed_pararaphs = processed_pararaphs.map(lambda batch, idx: {"paragraphs_index": idx,
                                                                           "n_words":[len(p.split()) for p in batch["paragraphs"]]},
-                                                      with_indices=True)
+                                                      with_indices=True, batched=True, batch_size=256)
 
     processed_pararaphs.to_parquet(output_file)
-
 
 if __name__ == "__main__":
     typer.run(books_to_paragraphs)
