@@ -1,8 +1,23 @@
 """
 This script takes the dataset of paragraphs obtained by the script books_to_paragraphs.py and cut the paragraphs into
 chunks. Too small paragraphs are
-The chunking strategy is the following:
-- Too sma
+The chunking strategy is the following, in order:
+- First, If paragraphs are two small, aggregate them until they reach a minimum number of words. The rules for chunking are:
+    1/ Aggregate only paragraphs from the same book and,
+    2/ Aggregate only paragraphs from the ame chapter and,
+    3/ Aggregate only paragraphs that follow each other and,
+    4/ Aggregate them until the aggregate exceeds a minimum number of words.
+- Second, ensure that paragraphs are not over a maximum number of words. If one paragraph has more words than the
+    maximum threshold:
+    1/ Get the number of subparagraphs by dividing the paragraph length by the max threshold and add 1 if the rest is
+    strictly superior to 0.
+    2/ Sentence tokenize the paragraph and aggregate the sentences in order until adding the next sentence exceeds the
+    threshold in terms of number of words. Then, do not aggregate that next sentence and define a subparagraph with
+    what has been aggregated so far. Repeat with the rest of the paragraph.
+
+Use:
+python paragraphs_to_chunks path_to_input_hf_dataset path_to_output_hf_dataset max_paragraph_length min_paragraph_length \
+        use_batching batch_size number_of_processors.
 """
 import typer
 import numpy as np

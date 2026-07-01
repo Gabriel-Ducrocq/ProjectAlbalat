@@ -10,8 +10,8 @@ stages:
       size: 9253521
     - path: albalat/data/interim/paragraphs.parquet
       hash: md5
-      md5: 51f3eef6098db2be6d066ee5e8a40d38
-      size: 208216743
+      md5: 5946e1a3424f2f961b463335c5ec2754
+      size: 5655616533
   paragraphs_to_chunks:
     cmd: python albalat/scripts/paragraphs_to_chunks.py 
       albalat/data/interim/paragraphs.parquet 
@@ -19,14 +19,14 @@ stages:
     deps:
     - path: albalat/data/interim/paragraphs.parquet
       hash: md5
-      md5: 51f3eef6098db2be6d066ee5e8a40d38
-      size: 208216743
+      md5: 5946e1a3424f2f961b463335c5ec2754
+      size: 5655616533
     - path: albalat/scripts/books_to_paragraphs.py
       hash: md5
-      md5: bc3a43b7e10870bff5be8c82d9a8a8ea
-      size: 15576
+      md5: f508f7f45733a19d6d7dd6b9b833dc6e
+      size: 15578
     outs:
     - path: albalat/data/processed/chunks.parquet
       hash: md5
-      md5: 1daf61517b1a5e83c92a420a08dc5e3b
-      size: 197375639
+      md5: 54aea35dfc6991f5cff42825e163ffb3
+      size: 5345731568

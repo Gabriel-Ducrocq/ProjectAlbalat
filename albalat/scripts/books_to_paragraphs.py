@@ -391,10 +391,7 @@ def books_to_paragraphs(
     common_pile_dataset_filtered = filter_hf_dataset(
         common_pile_dataset, kept_books.text_id.values
     )
-    #from datasets import Dataset
-    #common_pile_dataset_filtered = Dataset.from_dict(common_pile_dataset_filtered[10000:10800]).to_iterable_dataset()
-    #common_pile_dataset_filtered = Dataset.from_dict(common_pile_dataset_filtered[10000:10800])
-    #streaming = True
+
     if not streaming:
         processed_pararaphs = map_hf_dataset(
             common_pile_dataset_filtered, batched, num_proc, batch_size

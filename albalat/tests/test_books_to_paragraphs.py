@@ -319,8 +319,6 @@ class TestBooksToParagraphs:
 
         hf_dataset_iterable = hf_dataset.to_iterable_dataset()
         mapped_dataset_iterable = map_hf_dataset(hf_dataset_iterable, streaming=True, batched=True, batch_size=1).to_pandas()
-        print("MAPPED", mapped_dataset_iterable)
-        print("EXPECTED", expected)
         assert mapped_dataset_iterable.equals(
             expected
         ), f"""Mapped and expected IterableDataset do not match. Expected {expected}\n\n
