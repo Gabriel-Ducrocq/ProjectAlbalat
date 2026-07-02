@@ -13,7 +13,8 @@ The chunking strategy is the following, in order:
     strictly superior to 0.
     2/ Sentence tokenize the paragraph and aggregate the sentences in order until adding the next sentence exceeds the
     threshold in terms of number of words. Then, do not aggregate that next sentence and define a subparagraph with
-    what has been aggregated so far. Repeat with the rest of the paragraph.
+    what has been aggregated so far. Repeat with the rest of the paragraph. This make sure that all the subparagraphs
+    have a roughly equal shape.
 
 Use:
 python paragraphs_to_chunks path_to_input_hf_dataset path_to_output_hf_dataset max_paragraph_length min_paragraph_length \
