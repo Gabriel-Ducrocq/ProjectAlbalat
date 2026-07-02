@@ -29,7 +29,7 @@ jobs:
         pip install -r requirements.txt
     - name: download nltk punkt_tab
       run: |
-	python -m nltk.downloader punkt_tab
+        python -m nltk.downloader punkt_tab
     - name: ruff
       run: |
         # stop the build if there are Python syntax errors or undefined names
