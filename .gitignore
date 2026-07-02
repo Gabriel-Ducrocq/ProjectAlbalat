@@ -21,3 +21,4 @@ venv/
 
 #idea
 .idea/
+.dvc/config.local
