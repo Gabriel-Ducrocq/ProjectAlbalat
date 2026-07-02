@@ -20,6 +20,7 @@ Use:
 python paragraphs_to_chunks path_to_input_hf_dataset path_to_output_hf_dataset max_paragraph_length min_paragraph_length \
         use_batching batch_size number_of_processors.
 """
+
 import typer
 import numpy as np
 from tqdm import tqdm
@@ -348,9 +349,15 @@ def break_paragraphs(paragraphs: dict, max_p_length: int) -> dict:
     return splitted_paragraphs_data
 
 
-
-def paragraphs_to_chunks(hf_dataset: str, hf_output: str, max_p_length: int, threshold_min: int, batched: bool = True,
-                   batch_size: int = 256, num_proc: int = 16)->None:
+def paragraphs_to_chunks(
+    hf_dataset: str,
+    hf_output: str,
+    max_p_length: int,
+    threshold_min: int,
+    batched: bool = True,
+    batch_size: int = 256,
+    num_proc: int = 16,
+) -> None:
     """
     First aggregates the paragraphs when possible/necessary. Second, breaks the paragraphs that are too long.
     This function does not return anything.
@@ -362,10 +369,15 @@ def paragraphs_to_chunks(hf_dataset: str, hf_output: str, max_p_length: int, thr
     """
     dataset_paragraphs = load_dataset("parquet", data_files=hf_dataset, split="train")
     aggregated_paragraphs = aggregate_paragraphs(dataset_paragraphs, threshold_min)
-    chunks = aggregated_paragraphs.map(break_paragraphs, batched=batched, batch_size = batch_size, num_proc= num_proc,
-                                       fn_kwargs={"max_p_length": max_p_length})
+    chunks = aggregated_paragraphs.map(
+        break_paragraphs,
+        batched=batched,
+        batch_size=batch_size,
+        num_proc=num_proc,
+        fn_kwargs={"max_p_length": max_p_length},
+    )
     chunks.to_parquet(hf_output)
+
 
 if __name__ == "__main__":
     typer.run(paragraphs_to_chunks)
-

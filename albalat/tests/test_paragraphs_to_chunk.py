@@ -122,7 +122,7 @@ class TestParagraphAggregation:
                                                                             Recovered: {aggregated_dataset[column]}"""
 
         assert (
-            aggregated_dataset .to_dict()== expected_data
+            aggregated_dataset.to_dict() == expected_data
         ), f"""Aggregated and expected data do not match:\n
                                                         aggregated: {aggregated_dataset}\n
                                                         expected: {expected_data}"""

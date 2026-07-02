@@ -1,7 +1,7 @@
 import os
 import pandas as pd
 from pathlib import Path
-from datasets import Dataset, IterableDataset
+from datasets import Dataset
 from albalat.scripts.books_to_paragraphs import (
     extract_metadata_hf,
     get_bookshelves,
@@ -15,7 +15,7 @@ from albalat.scripts.books_to_paragraphs import (
     merge_and_select_columns,
     save_dataframe,
     filter_hf_dataset,
-    map_hf_dataset
+    map_hf_dataset,
 )
 
 BASE_DIR = Path(__file__).parent.parent
@@ -318,13 +318,10 @@ class TestBooksToParagraphs:
                                                     recovered {mapped_dataset}"""
 
         hf_dataset_iterable = hf_dataset.to_iterable_dataset()
-        mapped_dataset_iterable = map_hf_dataset(hf_dataset_iterable, streaming=True, batched=True, batch_size=1).to_pandas()
+        mapped_dataset_iterable = map_hf_dataset(
+            hf_dataset_iterable, streaming=True, batched=True, batch_size=1
+        ).to_pandas()
         assert mapped_dataset_iterable.equals(
             expected
         ), f"""Mapped and expected IterableDataset do not match. Expected {expected}\n\n
                                                     recovered {mapped_dataset}"""
-
-
-
-
-

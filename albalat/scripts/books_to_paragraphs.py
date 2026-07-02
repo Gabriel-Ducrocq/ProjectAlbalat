@@ -59,14 +59,16 @@ GENRES_KEPT = {
     "classicsofliterature",
 }
 
-features = Features({
-    "paragraph_index": Sequence(Value("int64")),
-    "text_ids": Sequence(Value("string")),
-    "spans": Sequence(Sequence(Value("int64"))),
-    "chapters": Sequence(Value("string")),
-    "n_words": Sequence(Value("int64")),
-    "paragraphs": Sequence(Value("string"))
-})
+features = Features(
+    {
+        "paragraph_index": Sequence(Value("int64")),
+        "text_ids": Sequence(Value("string")),
+        "spans": Sequence(Sequence(Value("int64"))),
+        "chapters": Sequence(Value("string")),
+        "n_words": Sequence(Value("int64")),
+        "paragraphs": Sequence(Value("string")),
+    }
+)
 
 BOOKSHELVES_REGEX = re.compile(r"[,;&]")
 PATTERN_CHAPTER = re.compile(
@@ -265,10 +267,14 @@ def map_pipeline_batch(sample_batch):
     Wrapper function apply pipeline to the rows of the Hugging Face dataset.
     """
     batch = {"paragraphs": [], "text_ids": [], "spans": [], "chapters": []}
-    assert isinstance(sample_batch["text"], list), f"""Text field in sampled batch should be a list, currently 
+    assert isinstance(
+        sample_batch["text"], list
+    ), f"""Text field in sampled batch should be a list, currently 
                                                         {type(sample_batch["text"])}"""
 
-    assert isinstance(sample_batch["id"], list), f"""Id field in sampled batch should be a list, currently 
+    assert isinstance(
+        sample_batch["id"], list
+    ), f"""Id field in sampled batch should be a list, currently 
                                                         {type(sample_batch["id"])}"""
     for num_sample in range(len(sample_batch["id"])):
         all_samples = pipeline(
@@ -318,7 +324,9 @@ def filter_hf_dataset(hf_dataset, values):
     return hf_dataset.filter(lambda x: eval(x["id"]) in values)
 
 
-def map_hf_dataset(hf_dataset_filtered, batched=True, num_proc=16, batch_size=256, streaming=False):
+def map_hf_dataset(
+    hf_dataset_filtered, batched=True, num_proc=16, batch_size=256, streaming=False
+):
     """
     Applies the map_pipeline function to the filtered HF dataset to split the books into paragraphs. Each paragraphs
     have 5 fields:
@@ -334,14 +342,14 @@ def map_hf_dataset(hf_dataset_filtered, batched=True, num_proc=16, batch_size=25
     :param streaming: whether to use streaming mode.
     :return: Hugging face dataset with
     """
-    assert batched == True, "The pipeline only works with batched inputs"
+    assert batched, "The pipeline only works with batched inputs"
     if not streaming:
         return hf_dataset_filtered.map(
-        map_pipeline_batch,
-        batched=batched,
-        num_proc=num_proc,
-        batch_size=batch_size,
-        remove_columns=["id", "text", "source", "added", "metadata"],
+            map_pipeline_batch,
+            batched=batched,
+            num_proc=num_proc,
+            batch_size=batch_size,
+            remove_columns=["id", "text", "source", "added", "metadata"],
         )
     else:
         return hf_dataset_filtered.map(
@@ -352,14 +360,13 @@ def map_hf_dataset(hf_dataset_filtered, batched=True, num_proc=16, batch_size=25
         )
 
 
-
 def books_to_paragraphs(
     output_file: str,
     languages: list[str] = ["en"],
     batched: bool = True,
     num_proc: int = 8,
     batch_size: int = 128,
-    streaming: bool = True
+    streaming: bool = True,
 ):
     """
     Defines the entire pipeline to get from raw gutenberg-project books to paragraphs.
@@ -371,7 +378,9 @@ def books_to_paragraphs(
     :return: None.
     """
     assert output_file.endswith(".parquet"), "Output file must be in parquet format."
-    assert streaming or (not streaming and batched), """Either streaming mode is enabled or streaming mode is disabled
+    assert streaming or (
+        not streaming and batched
+    ), """Either streaming mode is enabled or streaming mode is disabled
                                                         and batch mode is enabled."""
 
     common_pile_dataset = load_dataset(
@@ -396,20 +405,33 @@ def books_to_paragraphs(
         processed_pararaphs = map_hf_dataset(
             common_pile_dataset_filtered, batched, num_proc, batch_size
         )
-        processed_pararaphs = processed_pararaphs.map(lambda batch, idx: {"paragraphs_index": idx,
-                                                                          "n_words":[len(p.split()) for p in batch["paragraphs"]]},
-                                                      with_indices=True, batched=True, num_proc=16,
-                                    batch_size=256)
+        processed_pararaphs = processed_pararaphs.map(
+            lambda batch, idx: {
+                "paragraphs_index": idx,
+                "n_words": [len(p.split()) for p in batch["paragraphs"]],
+            },
+            with_indices=True,
+            batched=True,
+            num_proc=16,
+            batch_size=256,
+        )
     else:
         processed_pararaphs = map_hf_dataset(
             common_pile_dataset_filtered, streaming=streaming
         )
 
-        processed_pararaphs = processed_pararaphs.map(lambda batch, idx: {"paragraphs_index": idx,
-                                                                          "n_words":[len(p.split()) for p in batch["paragraphs"]]},
-                                                      with_indices=True, batched=True, batch_size=256)
+        processed_pararaphs = processed_pararaphs.map(
+            lambda batch, idx: {
+                "paragraphs_index": idx,
+                "n_words": [len(p.split()) for p in batch["paragraphs"]],
+            },
+            with_indices=True,
+            batched=True,
+            batch_size=256,
+        )
 
     processed_pararaphs.to_parquet(output_file)
+
 
 if __name__ == "__main__":
     typer.run(books_to_paragraphs)
