@@ -28,6 +28,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
     - name: download nltk punkt_tab
+      run: |
 	python -m nltk.downloader punkt_tab
     - name: ruff
       run: |
