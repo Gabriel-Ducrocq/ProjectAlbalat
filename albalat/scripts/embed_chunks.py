@@ -138,12 +138,10 @@ def embed(
         range(start_index, end_index), desc=f"GPU:{local_rank}", position=local_rank
     ):
         row_group_chunks = chunk_dataset.read_row_group(
-            row_group, columns=["text_ids", "spans", "chapters", "splitted_paragraphs"]
+            row_group, columns=["text_ids", "spans", "chapters", "paragraphs"]
         )
-        for batch in row_group_chunks.to_batches(
-            max_chunksize=batch_size_arrow
-        ):
-            texts = batch["splitted_paragraphs"].to_pylist()
+        for batch in row_group_chunks.to_batches(max_chunksize=batch_size_arrow):
+            texts = batch["paragraphs"].to_pylist()
             model.encode(
                 texts,
                 batch_size=batch_size_encoder,
