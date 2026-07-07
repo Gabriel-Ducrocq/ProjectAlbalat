@@ -140,9 +140,8 @@ def embed(
         row_group_chunks = chunk_dataset.read_row_group(
             row_group, columns=["text_ids", "spans", "chapters", "splitted_paragraphs"]
         )
-        for batch in row_group_chunks.iter_batches(
-            batch_size=batch_size_arrow,
-            columns=["text_ids", "spans", "chapters", "splitted_paragraphs"],
+        for batch in row_group_chunks.to_batches(
+            max_chunksize=batch_size_arrow
         ):
             texts = batch["splitted_paragraphs"].to_pylist()
             model.encode(
