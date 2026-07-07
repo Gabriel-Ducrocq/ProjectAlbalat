@@ -137,7 +137,7 @@ def embed(
     for row_group in tqdm(
         range(start_index, end_index), desc=f"GPU:{local_rank}", position=local_rank
     ):
-        row_group_chunks = chunk_dataset.read_row_groups(
+        row_group_chunks = chunk_dataset.read_row_group(
             row_group, columns=["text_ids", "spans", "chapters", "splitted_paragraphs"]
         )
         for batch in row_group_chunks.iter_batches(
