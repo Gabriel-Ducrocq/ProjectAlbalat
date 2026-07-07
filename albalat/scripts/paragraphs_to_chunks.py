@@ -376,7 +376,12 @@ def paragraphs_to_chunks(
         num_proc=num_proc,
         fn_kwargs={"max_p_length": max_p_length},
     )
-    chunks.to_parquet(hf_output)
+    chunks = chunks.map(
+        lambda example, idx: {"index": idx},
+        with_indices=True,
+    )
+    chunks_sorted = chunks.sort("n_words", reverse=False)
+    chunks_sorted.to_parquet(hf_output)
 
 
 if __name__ == "__main__":
