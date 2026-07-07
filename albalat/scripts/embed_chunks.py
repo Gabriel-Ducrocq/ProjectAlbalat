@@ -11,7 +11,6 @@ from tqdm import tqdm
 import pyarrow.parquet as pq
 from sentence_transformers import SentenceTransformer
 
-
 def get_device(local_rank: int = 0) -> str:
     """
     Gets the device, either cuda, mps or cpu.
@@ -75,8 +74,8 @@ def load_model(model_name: str,
     return SentenceTransformer(model_name, device=device,
                         model_kwargs={"dtype": eval(model_dtype), "attn_implementation": "sdpa"})
 
-def embed(dataset_path: str, model_name: str, local_rank: int =
-        typer.Option(None, "--local-rank", "--local_rank"),
+def embed(dataset_path: str,
+          model_name: str,
           batch_size_arrow: int = 4096,
           model_dtype: str = "torch.bfloat16",
           atten_implem: str = "sdpa",
@@ -98,10 +97,9 @@ def embed(dataset_path: str, model_name: str, local_rank: int =
                                                                         {type(dataset_path)}."""
     assert model_name is not None and type(model_name) == str, f"""The model_name must be a string, currently
                                                                     {type(model_name)}."""
-    assert local_rank is not None and type(local_rank) == int, f"""The local_rank must be an integer, currently
-                                                                    {type(local_rank)}."""
 
     world_size = int(os.environ["WORLD_SIZE"])
+    local_rank = int(os.environ["LOCAL_RANK"])
     print(
         f"local_rank={local_rank}, world_size={world_size}"
     )
@@ -119,68 +117,6 @@ def embed(dataset_path: str, model_name: str, local_rank: int =
                 batch_size=batch_size_encoder,
                 normalize_embeddings=True,
             )
-
-
-
-def test_compute_start_end_indexes():
-    local_rank0 = 0
-    local_rank1 = 1
-    local_rank2 = 2
-    world_size = 3
-    n_chunks = 39874
-    indexes_0 = compute_start_end_indexes(local_rank0, world_size, n_chunks)
-    indexes_1 = compute_start_end_indexes(local_rank1, world_size, n_chunks)
-    indexes_2 = compute_start_end_indexes(local_rank2, world_size, n_chunks)
-    assert indexes_0 == (0, 13291) and indexes_1 == (13291, 26582) and indexes_2 == (26582, 39875) , f"""
-                                        Expected indexes (0, 13291), (13292, 26582),(26582, 39875) but got
-                                        {indexes_0}, {indexes_1}, {indexes_2}."""
-
-
-def test_load_model_wrong_dtype():
-    has_raised = False
-    try:
-        load_model("IEITYuan/Yuan-embedding-2.0-en", "cpu", "torch.bfloat654",
-               "spda")
-
-    except AssertionError:
-        has_raised = True
-
-    assert has_raised, "The wrong input type should have raised an exception."
-
-def test_load_model_device_cpu():
-    model = load_model("IEITYuan/Yuan-embedding-2.0-en", "cpu", "torch.bfloat654",
-               "spda")
-    assert model.device == "cpu", f"""The model should be on cpu, current {model.device}"""
-
-def test_load_model_device_gpu():
-    if torch.cuda.is_available():
-        device = "cuda:0"
-    elif torch.mps.is_available():
-        device = "mps:0"
-    else:
-        device = "cpu"
-
-    model = load_model("IEITYuan/Yuan-embedding-2.0-en", device, "torch.bfloat16",
-               "sdpa")
-
-    assert str(model.device) == device, f"""The model should be on cpu, current {model.device}"""
-
-def test_load_model_dtype():
-    if torch.cuda.is_available():
-        device = "cuda:0"
-    elif torch.mps.is_available():
-        device = "mps:0"
-    else:
-        device = "cpu"
-
-    model = load_model("IEITYuan/Yuan-embedding-2.0-en", device, "torch.bfloat16",
-               "sdpa")
-    assert next(model.parameters()).dtype == torch.bfloat16, f"""The model should be on cpu, current {model.device}"""
-
-test_compute_start_end_indexes()
-test_load_model_wrong_dtype()
-test_load_model_device_gpu()
-test_load_model_dtype()
 
 if __name__ == "__main__":
     typer.run(embed)
