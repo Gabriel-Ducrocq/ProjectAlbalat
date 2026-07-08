@@ -138,7 +138,7 @@ def encode_chunk(
 def embed(
     output_dataset_path: str,
     dataset_path: str,
-    model_name: str,
+    model_name: str = "IEITYuan/Yuan-embedding-2.0-en",
     batch_size: int = 8,
     model_dtype: str = "torch.bfloat16",
     atten_implem: str = "sdpa",
