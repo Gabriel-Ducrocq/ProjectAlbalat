@@ -6,10 +6,10 @@ It loads the model, places it on GPU.
 """
 
 import os
-
 import datasets
 import torch
 import typer
+import numpy as np
 from datasets import Dataset
 from dataclasses import dataclass
 from sentence_transformers import SentenceTransformer
@@ -131,7 +131,7 @@ def encode_chunk(
             convert_to_numpy=encoding_parameters.convert_to_numpy,
             normalize_embeddings=encoding_parameters.normalize_embeddings,
             num_proc=encoding_parameters.num_proc,
-        )
+        ).astype(np.float16)
     }
 
 
@@ -146,7 +146,7 @@ def embed(
     convert_to_numpy: bool = True,
     normalize_embeddings: bool = True,
     batched: bool = True,
-    writer_batch_size=128,
+    writer_batch_size: int = 8,
 ) -> None:
     """
     Function responsible for embedding the chunks. It only embeds the chunks based on its GPU number ahd the total
@@ -203,6 +203,7 @@ def embed(
         batch_size=encoding_parameters.batch_size,
         batched=encoding_parameters.batched,
         writer_batch_size=writer_batch_size,
+        remove_columns=["paragraphs"]
     )
 
     chunk_dataset.to_parquet(save_path)
