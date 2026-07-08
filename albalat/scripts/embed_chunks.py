@@ -176,6 +176,8 @@ def embed(
     ), f"""The model_name must be a string, currently
                                                                     {type(model_name)}."""
 
+    assert os.path.isdir(output_dataset_path), f"""Saving location {output_dataset_path} does not exists."""
+
     encoding_parameters = encodingParameters(
         num_proc=num_proc,
         batch_size=batch_size,
