@@ -176,9 +176,6 @@ def embed(
     ), f"""The model_name must be a string, currently
                                                                     {type(model_name)}."""
 
-    assert output_dataset_path.endswith(".parquet"), f"""
-                                        The output file be in parquet format, currently {output_dataset_path}"""
-
     encoding_parameters = encodingParameters(
         num_proc=num_proc,
         batch_size=batch_size,
@@ -188,6 +185,9 @@ def embed(
     )
     world_size = int(os.environ["WORLD_SIZE"])
     local_rank = int(os.environ["LOCAL_RANK"])
+    save_path = os.path.join(output_dataset_path, f"embeddings_rank_{local_rank}.parquet")
+    assert save_path.endswith(".parquet"), f"""
+                                        The output file be in parquet format, currently {output_dataset_path}"""
     device = get_device(local_rank)
     print(f"local_rank={local_rank}, world_size={world_size}")
     model = load_model(model_name, device, model_dtype, atten_implem)
@@ -205,7 +205,7 @@ def embed(
         writer_batch_size=writer_batch_size,
     )
 
-    chunk_dataset.to_parquet(output_dataset_path)
+    chunk_dataset.to_parquet(save_path)
 
 
 if __name__ == "__main__":
