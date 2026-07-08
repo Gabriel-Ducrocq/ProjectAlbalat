@@ -368,7 +368,9 @@ def paragraphs_to_chunks(
     :return: None.
     """
     dataset_paragraphs = load_dataset("parquet", data_files=hf_dataset, split="train")
+    print("Aggregate paragraphs:")
     aggregated_paragraphs = aggregate_paragraphs(dataset_paragraphs, threshold_min)
+    print("Break paragraphs:")
     chunks = aggregated_paragraphs.map(
         break_paragraphs,
         batched=batched,
@@ -376,11 +378,14 @@ def paragraphs_to_chunks(
         num_proc=num_proc,
         fn_kwargs={"max_p_length": max_p_length},
     )
+    print("Adding an index")
     chunks = chunks.map(
         lambda example, idx: {"index": idx},
         with_indices=True,
     )
+    print("Sorting")
     chunks_sorted = chunks.sort("n_words", reverse=False)
+    print("Saving")
     chunks_sorted.to_parquet(hf_output)
 
 
