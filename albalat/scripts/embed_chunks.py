@@ -199,7 +199,7 @@ def embed(
         lambda chunk, encoding_params, model_embed: encode_chunk(
             chunk["paragraphs"], model_embed, encoding_parameters
         ),
-        fn_kwargs={"encoding_params": encoding_parameters, "model": model},
+        fn_kwargs={"encoding_params": encoding_parameters, "model_embed": model},
         batch_size=encoding_parameters.batch_size,
         batched=encoding_parameters.batched,
         writer_batch_size=writer_batch_size,
