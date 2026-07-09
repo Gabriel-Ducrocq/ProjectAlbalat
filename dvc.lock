@@ -23,10 +23,10 @@ stages:
       size: 5655616533
     - path: albalat/scripts/books_to_paragraphs.py
       hash: md5
-      md5: f508f7f45733a19d6d7dd6b9b833dc6e
-      size: 15578
+      md5: abe449733caeae55dd34ba329586e44e
+      size: 15337
     outs:
     - path: albalat/data/processed/chunks.parquet
       hash: md5
-      md5: 54aea35dfc6991f5cff42825e163ffb3
-      size: 5345731568
+      md5: f0f27be600f2182e951053c805bf17c9
+      size: 5919084479
