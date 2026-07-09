@@ -4,8 +4,8 @@ This scripts takes chunks and embed them with the given model.
 The chunk dataset is supposed to be in parquet format and have at least a "paragraphs" column and "chunk_index" column.
 It loads the model, places it on GPU.
 """
-
 import os
+import Path
 import datasets
 import torch
 import typer
@@ -176,6 +176,8 @@ def embed(
     ), f"""The model_name must be a string, currently
                                                                     {type(model_name)}."""
 
+    output_dir = Path(output_dataset_path)
+    output_dir.mkdir(parents=True, exist_ok=True)
     assert os.path.isdir(output_dataset_path), (
         f"""Saving location {output_dataset_path} does not exists."""
     )
