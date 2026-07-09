@@ -2,7 +2,6 @@ from pathlib import Path
 from datasets import Dataset
 from albalat.scripts.paragraphs_to_chunks import (
     State,
-    update_data,
     reset,
     aggregate_paragraphs,
     split_paragraph,
@@ -12,7 +11,7 @@ from albalat.scripts.paragraphs_to_chunks import (
 BASE_DIR = Path(__file__).parent.parent
 
 
-class TestParagraphAggregation:
+class TestParagraphAggregation2:
     test_state = State()
     test_state.length = 10
     test_state.text = "aaa"
@@ -21,29 +20,6 @@ class TestParagraphAggregation:
     test_state.chapter = "A"
     test_state.span_start = 35
     test_state.span_stop = 50
-
-    def test_update_data(self):
-        data = {
-            "paragraphs": ["hhb"],
-            "n_words": [1, 2, 3],
-            "text_ids": [],
-            "chapters": [],
-            "spans": [[0, 10]],
-        }
-        data_expected = {
-            "paragraphs": ["hhb", "aaa"],
-            "n_words": [1, 2, 3, 10],
-            "text_ids": [1],
-            "chapters": ["A"],
-            "spans": [[0, 10], [35, 50]],
-        }
-
-        update_data(self.test_state, data)
-        assert (
-            data_expected == data
-        ), f"""The updating data does not output the correct dictionnary. 
-                                                Expected: {data_expected} \n
-                                                Recovered: {data}"""
 
     def test_reset(self):
         reset(self.test_state)
@@ -57,7 +33,7 @@ class TestParagraphAggregation:
                                                                          Reset state {self.test_state.__dict__} \n
                                                                          Expected state {expected_state.__dict__}"""
 
-    def test_aggregate_paragraphs(self):
+    def test_aggregate(self):
         dict_data = {
             "paragraphs": [
                 "This is a test paragraphs.",
@@ -100,32 +76,32 @@ class TestParagraphAggregation:
             "n_words": [8, 6, 13, 3, 6, 2, 3],
             "text_ids": [0, 1, 1, 2, 2, 3, 3],
             "spans": [
-                [0, 35],
-                [10, 28],
-                [35, 67],
-                [18, 24],
-                [36, 45],
-                [104, 110],
-                [205, 309],
+                (0, 35),
+                (10, 28),
+                (35, 67),
+                (18, 24),
+                (36, 45),
+                (104, 110),
+                (205, 309),
             ],
         }
 
+        total_length = len(expected_data["n_words"])
+        expected_data = [
+            {k: v[row_number] for k, v in expected_data.items()}
+            for row_number in range(total_length)
+        ]
+
         hf_dataset = Dataset.from_dict(dict_data)
         min_threshold = 6
-        aggregated_dataset = aggregate_paragraphs(hf_dataset, min_threshold)
-
-        for column in expected_data.keys():
-            assert (
-                expected_data[column] == aggregated_dataset[column]
-            ), f"""Colums {column} wrong:
-                                                                            expected: {expected_data[column]}
-                                                                            Recovered: {aggregated_dataset[column]}"""
-
-        assert (
-            aggregated_dataset.to_dict() == expected_data
-        ), f"""Aggregated and expected data do not match:\n
-                                                        aggregated: {aggregated_dataset}\n
-                                                        expected: {expected_data}"""
+        aggregated_dataset = list(aggregate_paragraphs(hf_dataset, min_threshold))
+        for row_number, row in enumerate(expected_data):
+            for k, v in row.items():
+                assert (
+                    row[k] == aggregated_dataset[row_number][k]
+                ), f"""Row {row_number} column {k} wrong:
+                                                                                expected: {expected_data[row_number]}
+                                                                                Recovered: {row}"""
 
 
 class TestBreakParagraphs:

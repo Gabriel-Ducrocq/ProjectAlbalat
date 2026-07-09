@@ -4,8 +4,8 @@ This scripts takes chunks and embed them with the given model.
 The chunk dataset is supposed to be in parquet format and have at least a "paragraphs" column and "chunk_index" column.
 It loads the model, places it on GPU.
 """
-
 import os
+import Path
 import datasets
 import torch
 import typer
@@ -176,7 +176,11 @@ def embed(
     ), f"""The model_name must be a string, currently
                                                                     {type(model_name)}."""
 
-    assert os.path.isdir(output_dataset_path), f"""Saving location {output_dataset_path} does not exists."""
+    output_dir = Path(output_dataset_path)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    assert os.path.isdir(output_dataset_path), (
+        f"""Saving location {output_dataset_path} does not exists."""
+    )
 
     encoding_parameters = encodingParameters(
         num_proc=num_proc,
@@ -187,7 +191,9 @@ def embed(
     )
     world_size = int(os.environ["WORLD_SIZE"])
     local_rank = int(os.environ["LOCAL_RANK"])
-    save_path = os.path.join(output_dataset_path, f"embeddings_rank_{local_rank}.parquet")
+    save_path = os.path.join(
+        output_dataset_path, f"embeddings_rank_{local_rank}.parquet"
+    )
     assert save_path.endswith(".parquet"), f"""
                                         The output file be in parquet format, currently {output_dataset_path}"""
     device = get_device(local_rank)
@@ -205,7 +211,7 @@ def embed(
         batch_size=encoding_parameters.batch_size,
         batched=encoding_parameters.batched,
         writer_batch_size=writer_batch_size,
-        remove_columns=["paragraphs"]
+        remove_columns=["paragraphs"],
     )
 
     chunk_dataset.to_parquet(save_path)

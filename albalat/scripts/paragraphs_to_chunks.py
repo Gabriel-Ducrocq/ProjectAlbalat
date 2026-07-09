@@ -27,6 +27,7 @@ from tqdm import tqdm
 from datasets import Dataset
 from dataclasses import dataclass
 from datasets import load_dataset
+from collections.abc import Generator
 from nltk.tokenize import sent_tokenize
 
 
@@ -51,17 +52,15 @@ class State:
     span_stop: int | None | tuple[int] = None
     index: int | None = None
 
-
-def update_data(state: State, data: dict) -> None:
-    """
-    Updates the dictionnary data with the values provided in the arguments.
-    This function does not return anything but has a side effect: modifies the data dictionnary.
-    """
-    data["paragraphs"].append(state.text)
-    data["n_words"].append(state.length)
-    data["text_ids"].append(state.text_id)
-    data["chapters"].append(state.chapter)
-    data["spans"].append([state.span_start, state.span_stop])
+    def get_dict(self) -> dict:
+        """Return the aggregate data we want to keep in our dataset of chunks."""
+        return {
+            "paragraphs": self.text,
+            "n_words": self.length,
+            "text_ids": self.text_id,
+            "chapters": self.chapter,
+            "spans": (self.span_start, self.span_stop),
+        }
 
 
 def reset(state: State) -> None:
@@ -74,19 +73,6 @@ def reset(state: State) -> None:
     state.text = ""
     state.span_start = None
     state.span_stop = None
-
-
-def flush_aggregate(state: State, data: dict) -> None:
-    """
-    Register the state of the aggregate in the data dictonnary and reset the State object.
-    This function does not return anything but ha the side effects of modifying both the internal state of the State
-    object and the data dictionnary.
-    :param state: state of the aggregate
-    :param data: data dictionnary containing the content of the previous aggregates
-    :return: None
-    """
-    update_data(state, data)
-    reset(state)
 
 
 def set_state(paragraph: dict, state: State) -> None:
@@ -107,11 +93,12 @@ def set_state(paragraph: dict, state: State) -> None:
         state.span_stop = paragraph["spans"][1]
 
 
-def is_new_aggregate(state: State, state_new: State) -> bool:
+def is_new_aggregate(state: State, state_new: State, threshold: int) -> bool:
     """
     Computes whether we need to start a new aggregate
     :param state: current state (i.e paragraph_id, book_id, chapter)
     :param state_new: state of the paragraph (same attribute as state)
+    :param threshold: minimum number of words in the paragraph.
     :return: whether to start a new aggregate
     """
     return (
@@ -120,51 +107,14 @@ def is_new_aggregate(state: State, state_new: State) -> bool:
             (state_new.paragraph_id - 1) != state.paragraph_id
             and state.paragraph_id is not None
         )
-        or (state.chapter != state_new.chapter)
+        or (state.chapter != state_new.chapter and state.chapter is not None)
+        or (state.length >= threshold)
     )
-
-
-def start_new_aggregate(
-    current_state: State, new_state: State, data: dict, threshold_min: int, paragraph
-) -> None:
-    """
-    Deals with the current and next aggregate in case we have to change aggregate because of new chapter, new book id,
-    or paragraph_id has skipped one.
-    This function has the side effect of changing the state of the current_state and data
-    :param current_state: state of the current aggregate.
-    :param new_state: state of the current paragraph.
-    :param data: dictionnary of all the past aggregates.
-    :param threshold_min: minimum number of words in the aggregate.
-    :param paragraph: dictionnary of the content and metadata of the current paragraph.
-    :return: None.
-    """
-    if current_state.text != "":
-        flush_aggregate(current_state, data)
-
-    if new_state.length >= threshold_min:
-        update_data(new_state, data)
-        reset(current_state)
-    else:
-        if current_state.text == "":
-            current_state.text = paragraph["paragraphs"]
-        else:
-            current_state.text = "\n\n".join(
-                [current_state.text, paragraph["paragraphs"]]
-            )
-
-        current_state.length += new_state.length
-        current_state.text_id = new_state.text_id
-        current_state.paragraph_id = new_state.paragraph_id
-        current_state.chapter = new_state.chapter
-        current_state.span_start = new_state.span_start
-        current_state.span_stop = new_state.span_stop
 
 
 def continue_aggregate(
     current_state: State,
     new_state: State,
-    data: dict,
-    threshold_min: int,
     paragraph: dict,
 ) -> None:
     """
@@ -186,31 +136,12 @@ def continue_aggregate(
     current_state.paragraph_id = new_state.paragraph_id
     current_state.chapter = new_state.chapter
     current_state.span_stop = new_state.span_stop
-    if current_state.length >= threshold_min:
-        flush_aggregate(current_state, data)
 
 
-def aggregate_paragraphs(hf_dataset: Dataset, threshold_min: int) -> Dataset:
-    """
-    Aggregate the paragraphs together so that they have at least threshold_min words, according to the following rule:
-    - Paragraphs are aggregated in order of appearance in the text.
-    - Two paragraphs not belonging to the same book cannot be aggregated together.
-    - Two paragraphs not belonging to the same chapter cannot be aggregated together.
-    - We aggregate paragraphs until this aggregate has more than threshold_min_words. As a result, if the aggregate has
-        less than threshold_min_words but the next paragraphs has more than threshold_min_words, thi paragraph is still
-        aggregated.
-    - A paragraph that has more than threshold_min_words does not trigger aggregation of the subsequent paragraph.
-        Therefore, it stays untouched, unless it is aggregated to the previous one.
-    :param hf_dataset, the dataset to aggregate. Should have at least columns:
-            ["text_ids", "index", "paragraphs", "n_words", "spans"]
-    :param threshold_min: integer, minimum number of words in the paragraph.
-    """
+def aggregate_paragraphs(
+    hf_dataset: Dataset, threshold_min: int
+) -> Generator[dict[str, object], None, None]:
     current_state = State()
-    data = {
-        col_num: []
-        for col_num in hf_dataset.features.keys()
-        if col_num != "paragraphs_index"
-    }
     for paragraph in tqdm(hf_dataset):
         new_state = State()
         set_state(paragraph, new_state)
@@ -218,17 +149,15 @@ def aggregate_paragraphs(hf_dataset: Dataset, threshold_min: int) -> Dataset:
             current_state.span_start = paragraph["spans"][0]
             current_state.span_stop = paragraph["spans"][1]
 
-        if is_new_aggregate(current_state, new_state):
-            start_new_aggregate(
-                current_state, new_state, data, threshold_min, paragraph
-            )
+        if is_new_aggregate(current_state, new_state, threshold_min):
+            data_to_yield = current_state.get_dict()
+            current_state = new_state
+            yield data_to_yield
         else:
-            continue_aggregate(current_state, new_state, data, threshold_min, paragraph)
+            continue_aggregate(current_state, new_state, paragraph)
 
-    if current_state.text != "":
-        flush_aggregate(current_state, data)
-
-    return Dataset.from_dict(data)
+    data_to_yield = current_state.get_dict()
+    yield data_to_yield
 
 
 def split_paragraph(paragraph: str, max_p_length: int) -> list[str]:
@@ -369,7 +298,10 @@ def paragraphs_to_chunks(
     """
     dataset_paragraphs = load_dataset("parquet", data_files=hf_dataset, split="train")
     print("Aggregate paragraphs:")
-    aggregated_paragraphs = aggregate_paragraphs(dataset_paragraphs, threshold_min)
+    aggregated_paragraphs = Dataset.from_generator(
+        aggregate_paragraphs,
+        gen_kwargs={"hf_dataset": dataset_paragraphs, "threshold_min": threshold_min},
+    )
     print("Break paragraphs:")
     chunks = aggregated_paragraphs.map(
         break_paragraphs,

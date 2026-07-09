@@ -28,5 +28,5 @@ stages:
     outs:
     - path: albalat/data/processed/chunks.parquet
       hash: md5
-      md5: f0f27be600f2182e951053c805bf17c9
+      md5: 00da2607f884eee4828238a4869dfae5
       size: 5919084479
