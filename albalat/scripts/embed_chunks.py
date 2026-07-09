@@ -4,12 +4,13 @@ This scripts takes chunks and embed them with the given model.
 The chunk dataset is supposed to be in parquet format and have at least a "paragraphs" column and "chunk_index" column.
 It loads the model, places it on GPU.
 """
+
 import os
-import Path
 import datasets
 import torch
 import typer
 import numpy as np
+from pathlib import Path
 from datasets import Dataset
 from dataclasses import dataclass
 from sentence_transformers import SentenceTransformer
