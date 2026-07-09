@@ -1,7 +1,7 @@
 stages:
   books_to_paragraphs:
     cmd: python albalat/scripts/books_to_paragraphs.py 
-      albalat/data/interim/paragraphs.parquet
+      albalat/data/interim/paragraphs.parquet --streaming
     outs:
     - albalat/data/interim/paragraphs.parquet
     - albalat/data/interim/metadata_ids.csv
@@ -14,3 +14,10 @@ stages:
     - albalat/scripts/books_to_paragraphs.py
     outs:
     - albalat/data/processed/chunks.parquet
+  chunks_to_embeddings:
+    cmd: bash albalat/scripts/run_embeddings.sh
+    deps:
+    - albalat/data/processed/chunks.parquet
+    - albalat/scripts/run_embedding.sh
+    outs:
+    - albalat/data/processed/embeddings/

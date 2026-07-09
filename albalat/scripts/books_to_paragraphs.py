@@ -366,7 +366,7 @@ def books_to_paragraphs(
     batched: bool = True,
     num_proc: int = 8,
     batch_size: int = 128,
-    streaming: bool = True,
+    streaming: bool = False,
 ):
     """
     Defines the entire pipeline to get from raw gutenberg-project books to paragraphs.
