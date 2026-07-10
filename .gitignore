@@ -22,3 +22,6 @@ venv/
 #idea
 .idea/
 .dvc/config.local
+
+
+slurm_config.sh
