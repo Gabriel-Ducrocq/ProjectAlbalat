@@ -2,7 +2,7 @@ schema: '2.0'
 stages:
   books_to_paragraphs:
     cmd: python albalat/scripts/books_to_paragraphs.py 
-      albalat/data/interim/paragraphs.parquet
+      albalat/data/interim/paragraphs.parquet --no-streaming
     outs:
     - path: albalat/data/interim/metadata_ids.csv
       hash: md5
@@ -10,8 +10,8 @@ stages:
       size: 9253521
     - path: albalat/data/interim/paragraphs.parquet
       hash: md5
-      md5: 5946e1a3424f2f961b463335c5ec2754
-      size: 5655616533
+      md5: 31c94c17f5e2b2c75a4c8054d1ef0eec
+      size: 5655854898
   paragraphs_to_chunks:
     cmd: python albalat/scripts/paragraphs_to_chunks.py 
       albalat/data/interim/paragraphs.parquet 
@@ -19,12 +19,12 @@ stages:
     deps:
     - path: albalat/data/interim/paragraphs.parquet
       hash: md5
-      md5: 5946e1a3424f2f961b463335c5ec2754
-      size: 5655616533
+      md5: 31c94c17f5e2b2c75a4c8054d1ef0eec
+      size: 5655854898
     - path: albalat/scripts/books_to_paragraphs.py
       hash: md5
-      md5: abe449733caeae55dd34ba329586e44e
-      size: 15337
+      md5: 90fc5969a97d8b8dbb5423860aea2c11
+      size: 15338
     outs:
     - path: albalat/data/processed/chunks.parquet
       hash: md5
