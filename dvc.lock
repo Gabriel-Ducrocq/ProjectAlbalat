@@ -30,3 +30,20 @@ stages:
       hash: md5
       md5: 00da2607f884eee4828238a4869dfae5
       size: 5919084479
+  chunks_to_embeddings:
+    cmd: bash albalat/scripts/run_embedding.sh
+    deps:
+    - path: albalat/data/processed/chunks.parquet
+      hash: md5
+      md5: 00da2607f884eee4828238a4869dfae5
+      size: 5919084479
+    - path: albalat/scripts/run_embedding.sh
+      hash: md5
+      md5: ac2e3d312712ec6c9b6da39af7bd5e60
+      size: 229
+    outs:
+    - path: albalat/data/processed/embeddings/
+      hash: md5
+      md5: 3dbbdf185d1bbc6a4fb20e07d9b1910d.dir
+      size: 32393579834
+      nfiles: 4

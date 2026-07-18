@@ -25,3 +25,11 @@ venv/
 
 
 slurm_config.sh
+
+#docker
+*.sif
+
+#Qdrant
+storage/
+snapshots/
+.qdrant-initialized

@@ -15,7 +15,7 @@ stages:
     outs:
     - albalat/data/processed/chunks.parquet
   chunks_to_embeddings:
-    cmd: bash albalat/scripts/run_embeddings.sh
+    cmd: bash albalat/scripts/run_embedding.sh
     deps:
     - albalat/data/processed/chunks.parquet
     - albalat/scripts/run_embedding.sh
