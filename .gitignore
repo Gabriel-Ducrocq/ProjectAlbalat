@@ -30,6 +30,8 @@ slurm_config.sh
 *.sif
 
 #Qdrant
+albalat/data/processed/qdrant_storage/
+qdrant_storage/
 storage/
 snapshots/
 .qdrant-initialized
