@@ -3,10 +3,15 @@ This script creates a HNSW vector database using quadrant, based on a database o
 
 """
 import os
+import pytest
+import yaml
+import typer
+import numpy as np
 from pathlib import Path
 from dataclasses import dataclass
 from qdrant_client import QdrantClient
-from datasets import Dataset, load_dataset
+from testcontainers.core.container import DockerContainer
+from datasets import Dataset, load_dataset, Sequence, Value
 from qdrant_client.http.exceptions import UnexpectedResponse, ResponseHandlingException
 from qdrant_client.http.models import ScalarQuantizationConfig
 from qdrant_client.models import Distance, VectorParams, HnswConfigDiff, QuantizationConfig, ScalarQuantization, ScalarType
@@ -14,11 +19,14 @@ from qdrant_client.models import Distance, VectorParams, HnswConfigDiff, Quantiz
 
 @dataclass
 class QdrantCli:
-    client: QdrantClient
     collection_name: str
+    collection_url: str
     construction_parameters: HnswConfigDiff
     vector_params: VectorParams
     quantization_config: QuantizationConfig | None = None
+    n_processes: int = 4
+    upload_batch_size: int = 256
+    client: QdrantClient | None = None
 
     def to_qdrant_kwargs(self):
         kwargs = {"collection_name":self.collection_name,
@@ -30,26 +38,23 @@ class QdrantCli:
 
         return kwargs
 
-def initialize_client(url: str = "http://localhost:6333") -> QdrantClient:
+def initialize_client(qdrant_cli: QdrantCli) -> None:
     """
-    Initalizes qdrant client
-    :param url: url where to reach the client.
-    :return: the qdrant client
+    Initializes qdrant client. This function does not return anything but has a side effect of updating the state of the
+    qdrant_cli object.
+    :param qdrant_cli: object of class QdrantCli containing all the necessary information about the collection.
+    :return: None
     """
-    client = QdrantClient(url=url)
-    return client
+    qdrant_cli.client = QdrantClient(url=qdrant_cli.collection_url)
 
-def create_collection(qdrant_cli: QdrantCli):
+def create_collection(qdrant_cli: QdrantCli) -> None:
     """
     Creates a qdrant collection with specified name and parameters.
-    :param client: qdrant client to use to create a collection.
-    :param collection_name: name of the collection we want to create.
-    :param construction_parameters: parameters for the construction of the HNSW graph.
-    :param url: url where to access the qdrant vector DB started from ocker/apptainer.
+    :param qdrant_cli: object of type QdrantCli containing all the necessary information about the collection.
     :return: None
     """
     try:
-        client.create_collection(
+        qdrant_cli.client.create_collection(
         **qdrant_cli.to_qdrant_kwargs()
         )
     except UnexpectedResponse as e:
@@ -82,6 +87,15 @@ def verify_parquet_folder(path: Path) -> None:
     parquet_files = [file for file in all_files if file.endswith(".parquet")]
     assert parquet_files != [], f"""Path {all_files} contains no parquet file."""
 
+def convert_embeddings_float16(dataset: Dataset) -> Dataset:
+    """
+    Convert the embeddings column of a dataset to float16.
+    :param dataset: dataset with at least an "embeddings" column.
+    :return: dataset.
+    """
+    dataset = dataset.cast_column("embeddings", Sequence(Value(dtype="float16")))
+    return dataset
+
 def load_embeddings_dataset(path: Path) -> Dataset:
     """
     Reads the dataset of embeddings in parquet format
@@ -89,11 +103,144 @@ def load_embeddings_dataset(path: Path) -> Dataset:
     :return: hugging face dataset
     """
     dataset = load_dataset("parquet", data_files=str(path / "*.parquet"), split="train")
+    dataset = convert_embeddings_float16(dataset)
+    dataset.set_format("numpy")
     return dataset
 
+def validate_dataset_format(dataset: Dataset) -> None:
+    """
+    Validates whether the dataset has an "embeddings" column and an "index" columns.
+    :param dataset: Hugging Face dataset
+    :return: None
+    """
+    colnames = set(dataset.column_names)
+    expected_colnames = {"embeddings", "index"}
+    assert expected_colnames == expected_colnames.intersection(colnames), f"""The columns {expected_colnames} are expected
+                                                                    to be part of the Hugging Face dataset. Currently
+                                                                    has columns {colnames}."""
 
-client = initialize_client("testURL")
-assert isinstance(client,QdrantClient), """Created client is not a Qdrant client."""
+    assert dataset.features["embeddings"].feature.dtype == "float16", f"""The embeddings are supposed to be float16, currently
+                                                            {dataset[0]["embeddings"].dtype}"""
+
+
+def disable_index_construction(qdrant_client: QdrantCli) -> None:
+    """
+    Disables client construction for maximum efficiency in uploading the collection. This function returns nothing
+    but has the side effect of changing the parameterization of the collection.
+    :param qdrant_client: QdrantCli object with all the parameters of the qdrant collection/client.
+    :return: None.
+    """
+    qdrant_client.client.update_collection(collection_name=qdrant_client.collection_name,
+                                           optimizers_config={"indexing_threshold": 0})
+
+
+def enable_index_construction(qdrant_client: QdrantCli) -> None:
+    """
+    Enables client construction for maximum efficiency in uploading the collection. This function returns nothing
+    but has the side effect of changing the parameterization of the collection.
+    :param qdrant_client: QdrantCli object with all the parameters of the qdrant collection/client.
+    :return: None.
+    """
+    qdrant_client.client.update_collection(collection_name=qdrant_client.collection_name,
+                                           optimizers_config={"indexing_threshold": 20000})
+
+def add_embeddings(qdrant_cli: QdrantCli, embeddings_and_indexes: Dataset) -> None:
+    """
+    Adds the embeddings to the collection. As there are roughly 10 millions embeddings, we let Qdrant deal with the
+    batching and insertion logic.
+    :param qdrant_cli: QdrantCli object containing all the information related to the collection.
+    :param embeddings_and_indexes: datasets of embeddings with the index of the graph.
+    :return: None
+    """
+    qdrant_cli.client.upload_collection(
+                                        qdrant_cli.collection_name,
+                                        ids=embeddings_and_indexes["index"],
+                                        vectors = embeddings_and_indexes["embeddings"],
+                                        parallel=qdrant_cli.n_processes,
+                                        batch_size=qdrant_cli.upload_batch_size)
+
+def load_yaml(yaml_path: str) -> dict:
+    """
+    Load the yaml file into a dictionary.
+    :param yaml_path: path to the yaml file.
+    :return: a dictionary with the configuration.
+    """
+    with open(yaml_path) as f:
+        config = yaml.safe_load(f)
+
+    return config
+
+def parse_yaml(config: dict, embeddings_dim: int)-> QdrantCli:
+    """
+    Loads the yaml file and translate it into a QdrantCli object.
+    :param config: dict of the yaml file configuring the vector db.
+    :param embeddings_dim: dimension of the embeddings.
+    :return: the QdrantCli object containing all the parameters.
+    """
+    hnsw_config = HnswConfigDiff(
+        m=config["hnsw"]["m"],
+        ef_construct=config["hnsw"]["ef_construct"],
+    )
+    vectors_param = VectorParams(size=embeddings_dim, distance=Distance.COSINE)
+
+    scalar_params = ScalarQuantizationConfig(
+        type=ScalarType.INT8,
+        always_ram=True,
+    )
+    quantization_params = ScalarQuantization(scalar=scalar_params)
+    return QdrantCli(collection_name=config["collection_name"],
+                     collection_url=config["collection_url"],
+                     construction_parameters=hnsw_config,
+                     n_processes = config["n_processes"],
+                     upload_batch_size = config["upload_batch_size"],
+                     vector_params= vectors_param,
+                     quantization_config= None if not config["quantization"]["use_quant"] else quantization_params
+                     )
+
+def prepare_embeddings(embedding_path: str) -> Dataset:
+    """
+    Given the path to the embeddings folder, creates the correct pattern for reading the parquet files, verifies its
+    existence and the existence of at least one parquet file inside, load the embedding dataset and returns
+    the "index" and "embeddings" columns.
+    Convention: the data to be read is in parquet format and contains at least an "index" and "embeddings" columns.
+                The path in the argument of the function is the path of the folder containing at least one parqet file.
+                The script will load all parquet files in that folder.
+    :param embedding_path: path to the embedding folder.
+    :return: Hugging Face dataset with at least "index" and "embeddings" columns.
+    """
+    embedding_path = define_path(embedding_path)
+    verify_parquet_folder(embedding_path)
+    embedding_dataset = load_embeddings_dataset(embedding_path)
+    validate_dataset_format(embedding_dataset)
+    return embedding_dataset.select_columns(["index", "embeddings"])
+
+def efficient_add_embeddings(qdrant_config: QdrantCli, embedding_data: Dataset) -> None:
+    """
+    Efficiently embeds the embeddings by disabling the indexing in the Qdrant collection, then adding all the embeddings
+    and finally re-enabling the indexing.
+    :param qdrant_config: all the parameters of the collection.
+    :param embedding_data: Hugging Face Dataset with only columns "index" and "embeddings".
+    :return: None
+    """
+    disable_index_construction(qdrant_config)
+    add_embeddings(qdrant_cli, embedding_data)
+    enable_index_construction(qdrant_config)
+
+def create_vector_db(yaml_path: str) -> None:
+    """
+    Creates and initialize the client, disable the indexing, upload the embeddings and enable the indexing.
+    :param yaml_path: path to the yaml file for getting the configuration of the experiment.
+    :return: None
+    """
+    config = load_yaml(yaml_path)
+    embedding_dataset = prepare_embeddings(config["embeddings_path"])
+    qdrant_config = parse_yaml(config, embedding_dataset[0]["embeddings"].shape[-1])
+    create_collection(qdrant_config)
+    efficient_add_embeddings(qdrant_config, embedding_dataset)
+
+
+
+
 collection_name = "test_collection"
 vectors_param = VectorParams(size=1024, distance=Distance.COSINE)
 scalar_params = ScalarQuantizationConfig(
@@ -110,10 +257,22 @@ hnsw_config = HnswConfigDiff(
 
 client = QdrantClient(":memory:")
 
+
 qdrant_cli = QdrantCli(client=client,
                        collection_name=collection_name,
                        construction_parameters=hnsw_config,
-                       vector_params=vectors_param)
+                       vector_params=vectors_param,
+                       collection_url="testURL")
+
+
+initialize_client(qdrant_cli)
+assert isinstance(qdrant_cli.client,QdrantClient), """Created client is not a Qdrant client."""
+
+qdrant_cli = QdrantCli(client=client,
+                       collection_name=collection_name,
+                       construction_parameters=hnsw_config,
+                       vector_params=vectors_param,
+                       collection_url=":memory:")
 create_collection(qdrant_cli)
 
 if client.collection_exists(collection_name):
@@ -123,7 +282,8 @@ qdrant_cli_quant = QdrantCli(client=client,
                        collection_name=collection_name,
                        construction_parameters=hnsw_config,
                        vector_params=vectors_param,
-                       quantization_config=quantization_params)
+                       quantization_config=quantization_params,
+                       collection_url=":memory:")
 
 create_collection(qdrant_cli_quant)
 
@@ -136,9 +296,7 @@ except:
 
 assert has_raised, f"""Folder {test_folder} does not exist and should have raised an exception"""
 
-
-
-test_folder = "../../albalat/data/processed/"
+test_folder = "albalat/data/processed/"
 has_raised = False
 try:
     test_folder = define_path(test_folder)
@@ -155,7 +313,7 @@ except:
 
 assert not has_raised, f"""Folder {test_folder} has parquet file(s) and should not raise an error."""
 
-test_folder = define_path("../../albalat/data/raw/")
+test_folder = define_path("albalat/data/raw/")
 has_raised = False
 try:
     verify_parquet_folder(test_folder)
@@ -165,4 +323,129 @@ except:
 assert has_raised, f"""Folder {test_folder} has not parquet file and should raise an error."""
 
 
+## Test
+
+
 #['n_words', 'text_ids', 'chapters', 'spans', 'splitted_paragraphs', 'index', 'embeddings']
+
+#Integraton test for loading the embeddings.
+import pandas as pd
+def test_load_embeddings(tmp_path):
+    df = pd.DataFrame({
+        "id": [1, 2, 3],
+        "embeddings": [[0.1, 0.2], [0.3, 0.4], [0.5, 0.6]]
+    })
+
+    df.to_parquet(tmp_path / "part-000.parquet")
+    df.to_parquet(tmp_path / "part-001.parquet")
+    loaded_dataset = load_embeddings_dataset(tmp_path)
+    assert len(loaded_dataset) == 6, f"""Dataset length should be 3, currently {len(loaded_dataset)}"""
+
+
+#Testing validate_dataset_format
+
+def make_valid_dataset():
+    return Dataset.from_dict({
+        "index": [0, 1],
+        "embeddings": [
+            np.array([0.1, 0.2], dtype=np.float16),
+            np.array([0.3, 0.4], dtype=np.float16),
+        ],
+    })
+
+def test_validate_dataset_format_missing_embeddings():
+    has_raised = False
+    try:
+        dataset = Dataset.from_dict({
+            "index": [0, 1],
+            "test": [
+                np.array([0.1, 0.2], dtype=np.float16),
+                np.array([0.3, 0.4], dtype=np.float16),
+            ],
+        })
+        validate_dataset_format(dataset)
+    except:
+        has_raised = True
+
+    assert has_raised, """Missing embeddings column should have raised an error."""
+
+def test_validate_dataset_format_missing_index():
+    has_raised = False
+    try:
+        dataset = Dataset.from_dict({
+            "test": [0, 1],
+            "embeddings": [
+                np.array([0.1, 0.2], dtype=np.float16),
+                np.array([0.3, 0.4], dtype=np.float16),
+            ],
+        })
+        validate_dataset_format(dataset)
+    except:
+        has_raised = True
+
+    assert has_raised, """Missing index column should have raised an error."""
+
+def test_validate_dataset_format_valid():
+    dataset = Dataset.from_dict({
+        "index": [0, 1],
+        "embeddings": [
+            np.array([0.1, 0.2], dtype=np.float16),
+            np.array([0.3, 0.4], dtype=np.float16),
+        ],
+    })
+    dataset = convert_embeddings_float16(dataset)
+    dataset.set_format("numpy")
+    validate_dataset_format(dataset)
+
+
+
+
+# Integration tests of enabling and disabling the index building.
+
+
+@pytest.fixture(scope="session")
+def qdrant_client():
+    with DockerContainer("qdrant/qdrant:latest") \
+            .with_exposed_ports(6333) as container:
+        collection_name = "test_collection"
+        vectors_param = VectorParams(size=1024, distance=Distance.COSINE)
+        scalar_params = ScalarQuantizationConfig(
+            type=ScalarType.INT8,
+            always_ram=True,
+        )
+        quantization_params = ScalarQuantization(scalar=scalar_params)
+
+        hnsw_config = HnswConfigDiff(
+            m=16,
+            ef_construct=200,
+        )
+        qdrant_cli_quant = QdrantCli(
+                                     collection_name=collection_name,
+                                     construction_parameters=hnsw_config,
+                                     vector_params=vectors_param,
+                                     quantization_config=quantization_params,
+                                     collection_url="http://localhost:6333")
+
+
+        initialize_client(qdrant_cli_quant)
+        create_collection(qdrant_cli_quant)
+        yield qdrant_cli_quant
+
+        if qdrant_cli_quant.client.collection_exists(qdrant_cli_quant.collection_name):
+            qdrant_cli_quant.client.delete_collection(qdrant_cli_quant.collection_name)
+
+def test_disable_indexing_integration(qdrant_client):
+    disable_index_construction(qdrant_client)
+    collection = qdrant_client.client.get_collection(qdrant_client.collection_name)
+    assert collection.config.optimizer_config.indexing_threshold == 0, f"""The indexing threhsold should be at 0, currently
+                                                                            {collection.config.optimizer_config.indexing_threshold} """
+
+def test_enable_indexing_integration(qdrant_client):
+    disable_index_construction(qdrant_client)
+    enable_index_construction(qdrant_client)
+    collection = qdrant_client.client.get_collection(qdrant_client.collection_name)
+    assert collection.config.optimizer_config.indexing_threshold == 20000, f"""The indexing threshold should be at 20000, currently
+                                                                            {collection.config.optimizer_config.indexing_threshold} """
+
+if __name__ == "__main__":
+    typer.run(create_vector_db)

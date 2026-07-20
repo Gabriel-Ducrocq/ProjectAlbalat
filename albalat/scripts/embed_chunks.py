@@ -20,7 +20,6 @@ from datasets.distributed import split_dataset_by_node
 @dataclass
 class encodingParameters:
     """Class that contains all the parameters for the encoding."""
-
     num_proc: int = 4
     batch_size: int = 8
     convert_to_numpy: bool = True
@@ -198,7 +197,6 @@ def embed(
     assert save_path.endswith(".parquet"), f"""
                                         The output file be in parquet format, currently {output_dataset_path}"""
     device = get_device(local_rank)
-    print(f"local_rank={local_rank}, world_size={world_size}")
     model = load_model(model_name, device, model_dtype, atten_implem)
     chunk_dataset = load_chunks_datasets(dataset_path)
     chunk_dataset = split_dataset_by_node(
