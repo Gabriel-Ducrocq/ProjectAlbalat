@@ -20,6 +20,7 @@ from datasets.distributed import split_dataset_by_node
 @dataclass
 class encodingParameters:
     """Class that contains all the parameters for the encoding."""
+
     num_proc: int = 4
     batch_size: int = 8
     convert_to_numpy: bool = True

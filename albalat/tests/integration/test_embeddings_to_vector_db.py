@@ -1,14 +1,21 @@
 import yaml
+import pytest
 import numpy as np
 from datasets import Dataset
 from testcontainers.core.container import DockerContainer
-from albalat.scripts.embeddings_to_vector_db import create_vector_db, parse_yaml, initialize_client, add_embeddings, create_collection
+from albalat.scripts.embeddings_to_vector_db import (
+    create_vector_db,
+    parse_yaml,
+    initialize_client,
+    add_embeddings,
+    create_collection,
+)
 
+
+@pytest.mark.integration
 def test_create_vector_db(tmp_path):
-    with DockerContainer("qdrant/qdrant:latest") \
-            .with_exposed_ports(6333) as container:
-
-        embedding_db =  {
+    with DockerContainer("qdrant/qdrant:latest").with_exposed_ports(6333) as container:
+        embedding_db = {
             "index": [0, 1, 2],
             "embeddings": [
                 np.random.normal(size=1024),
@@ -18,7 +25,7 @@ def test_create_vector_db(tmp_path):
         }
 
         dataset = Dataset.from_dict(embedding_db)
-        dataset_path =  tmp_path / "embeddings.parquet"
+        dataset_path = tmp_path / "embeddings.parquet"
         dataset.to_parquet(dataset_path)
 
         host = container.get_container_host_ip()
@@ -41,16 +48,13 @@ def test_create_vector_db(tmp_path):
         with open(yaml_path, "w") as f:
             yaml.safe_dump(config, f)
 
-        try:
             create_vector_db(yaml_path)
-        except:
-            assert False, "Could not go through the create_vector_db function."
 
+
+@pytest.mark.integration
 def test_add_embeddings(tmp_path):
-    with DockerContainer("qdrant/qdrant:latest") \
-            .with_exposed_ports(6333) as container:
-
-        embedding_db =  {
+    with DockerContainer("qdrant/qdrant:v1.18.3").with_exposed_ports(6333) as container:
+        embedding_db = {
             "index": [0, 1, 2],
             "embeddings": [
                 [0.1, 0.2, 0.3],
@@ -82,7 +86,4 @@ def test_add_embeddings(tmp_path):
             qdrant_config.client.delete_collection(qdrant_config.collection_name)
 
         create_collection(qdrant_config)
-        try:
-            add_embeddings(qdrant_config, dataset)
-        except:
-            assert False, "Could not go through adding the embeddings to the db"
+        add_embeddings(qdrant_config, dataset)

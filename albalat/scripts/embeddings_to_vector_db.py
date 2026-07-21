@@ -2,18 +2,24 @@
 This script creates a HNSW vector database using quadrant, based on a database of embeddings.
 
 """
+
 import os
-import pytest
 import yaml
 import typer
-import numpy as np
 from pathlib import Path
 from dataclasses import dataclass
 from qdrant_client import QdrantClient
 from datasets import Dataset, load_dataset, Sequence, Value
 from qdrant_client.http.exceptions import UnexpectedResponse, ResponseHandlingException
 from qdrant_client.http.models import ScalarQuantizationConfig
-from qdrant_client.models import Distance, VectorParams, HnswConfigDiff, QuantizationConfig, ScalarQuantization, ScalarType
+from qdrant_client.models import (
+    Distance,
+    VectorParams,
+    HnswConfigDiff,
+    QuantizationConfig,
+    ScalarQuantization,
+    ScalarType,
+)
 
 
 @dataclass
@@ -28,14 +34,17 @@ class QdrantCli:
     client: QdrantClient | None = None
 
     def to_qdrant_kwargs(self):
-        kwargs = {"collection_name":self.collection_name,
-                  "vectors_config": self.vector_params,
-                  "hnsw_config": self.construction_parameters}
+        kwargs = {
+            "collection_name": self.collection_name,
+            "vectors_config": self.vector_params,
+            "hnsw_config": self.construction_parameters,
+        }
 
         if self.quantization_config is not None:
             kwargs["quantization_config"] = self.quantization_config
 
         return kwargs
+
 
 def initialize_client(qdrant_cli: QdrantCli) -> None:
     """
@@ -46,6 +55,7 @@ def initialize_client(qdrant_cli: QdrantCli) -> None:
     """
     qdrant_cli.client = QdrantClient(url=qdrant_cli.collection_url)
 
+
 def create_collection(qdrant_cli: QdrantCli) -> None:
     """
     Creates a qdrant collection with specified name and parameters.
@@ -53,9 +63,7 @@ def create_collection(qdrant_cli: QdrantCli) -> None:
     :return: None
     """
     try:
-        qdrant_cli.client.create_collection(
-        **qdrant_cli.to_qdrant_kwargs()
-        )
+        qdrant_cli.client.create_collection(**qdrant_cli.to_qdrant_kwargs())
     except UnexpectedResponse as e:
         # Server rejected the request (bad params, collection already exists, etc.)
         print(f"Qdrant rejected the request: {e}")
@@ -65,6 +73,7 @@ def create_collection(qdrant_cli: QdrantCli) -> None:
         print(f"Could not reach Qdrant: {e}")
         raise
 
+
 def define_path(path: str) -> Path:
     """
     Check whether the path define by the string exists and if yes return it as a Path object.
@@ -72,8 +81,11 @@ def define_path(path: str) -> Path:
     :return: path to the folder as Path object
     """
     path = Path(path)
-    assert path.exists(), f"""The path {path} does not exists"""
+    if not path.exists():
+        raise FileNotFoundError(f"""The path {path} does not exists""")
+
     return path
+
 
 def verify_parquet_folder(path: Path) -> None:
     """
@@ -82,9 +94,12 @@ def verify_parquet_folder(path: Path) -> None:
     :return: None
     """
     all_files = os.listdir(path)
-    assert all_files != [], f"""Path {all_files} contains no file."""
+    if all_files == []:
+        raise ValueError(f"""Path {all_files} contains no file.""")
     parquet_files = [file for file in all_files if file.endswith(".parquet")]
-    assert parquet_files != [], f"""Path {all_files} contains no parquet file."""
+    if parquet_files == []:
+        raise ValueError(f"""Path {all_files} contains no parquet file.""")
+
 
 def convert_embeddings_float16(dataset: Dataset) -> Dataset:
     """
@@ -94,6 +109,7 @@ def convert_embeddings_float16(dataset: Dataset) -> Dataset:
     """
     dataset = dataset.cast_column("embeddings", Sequence(Value(dtype="float16")))
     return dataset
+
 
 def load_embeddings_dataset(path: Path) -> Dataset:
     """
@@ -106,6 +122,7 @@ def load_embeddings_dataset(path: Path) -> Dataset:
     dataset.set_format("numpy")
     return dataset
 
+
 def validate_dataset_format(dataset: Dataset) -> None:
     """
     Validates whether the dataset has an "embeddings" column and an "index" columns.
@@ -114,12 +131,14 @@ def validate_dataset_format(dataset: Dataset) -> None:
     """
     colnames = set(dataset.column_names)
     expected_colnames = {"embeddings", "index"}
-    assert expected_colnames == expected_colnames.intersection(colnames), f"""The columns {expected_colnames} are expected
+    if expected_colnames != expected_colnames.intersection(colnames):
+        raise ValueError(f"""The columns {expected_colnames} are expected
                                                                     to be part of the Hugging Face dataset. Currently
-                                                                    has columns {colnames}."""
+                                                                    has columns {colnames}.""")
 
-    assert dataset.features["embeddings"].feature.dtype == "float16", f"""The embeddings are supposed to be float16, currently
-                                                            {dataset[0]["embeddings"].dtype}"""
+    if dataset.features["embeddings"].feature.dtype != "float16":
+        raise TypeError(f"""The embeddings are supposed to be float16, currently
+                                                            {dataset[0]["embeddings"].dtype}""")
 
 
 def disable_index_construction(qdrant_client: QdrantCli) -> None:
@@ -129,8 +148,10 @@ def disable_index_construction(qdrant_client: QdrantCli) -> None:
     :param qdrant_client: QdrantCli object with all the parameters of the qdrant collection/client.
     :return: None.
     """
-    qdrant_client.client.update_collection(collection_name=qdrant_client.collection_name,
-                                           optimizers_config={"indexing_threshold": 0})
+    qdrant_client.client.update_collection(
+        collection_name=qdrant_client.collection_name,
+        optimizers_config={"indexing_threshold": 0},
+    )
 
 
 def enable_index_construction(qdrant_client: QdrantCli) -> None:
@@ -140,8 +161,11 @@ def enable_index_construction(qdrant_client: QdrantCli) -> None:
     :param qdrant_client: QdrantCli object with all the parameters of the qdrant collection/client.
     :return: None.
     """
-    qdrant_client.client.update_collection(collection_name=qdrant_client.collection_name,
-                                           optimizers_config={"indexing_threshold": 20000})
+    qdrant_client.client.update_collection(
+        collection_name=qdrant_client.collection_name,
+        optimizers_config={"indexing_threshold": 20000},
+    )
+
 
 def add_embeddings(qdrant_cli: QdrantCli, embeddings_and_indexes: Dataset) -> None:
     """
@@ -152,11 +176,13 @@ def add_embeddings(qdrant_cli: QdrantCli, embeddings_and_indexes: Dataset) -> No
     :return: None
     """
     qdrant_cli.client.upload_collection(
-                                        qdrant_cli.collection_name,
-                                        ids= [int(ind) for ind in embeddings_and_indexes["index"]],
-                                        vectors = embeddings_and_indexes["embeddings"],
-                                        parallel=qdrant_cli.n_processes,
-                                        batch_size=qdrant_cli.upload_batch_size)
+        qdrant_cli.collection_name,
+        ids=[int(ind) for ind in embeddings_and_indexes["index"]],
+        vectors=embeddings_and_indexes["embeddings"],
+        parallel=qdrant_cli.n_processes,
+        batch_size=qdrant_cli.upload_batch_size,
+    )
+
 
 def load_yaml(yaml_path: str) -> dict:
     """
@@ -169,7 +195,8 @@ def load_yaml(yaml_path: str) -> dict:
 
     return config
 
-def parse_yaml(config: dict, embeddings_dim: int)-> QdrantCli:
+
+def parse_yaml(config: dict, embeddings_dim: int) -> QdrantCli:
     """
     Loads the yaml file and translate it into a QdrantCli object.
     :param config: dict of the yaml file configuring the vector db.
@@ -187,14 +214,18 @@ def parse_yaml(config: dict, embeddings_dim: int)-> QdrantCli:
         always_ram=True,
     )
     quantization_params = ScalarQuantization(scalar=scalar_params)
-    return QdrantCli(collection_name=config["collection_name"],
-                     collection_url=config["collection_url"],
-                     construction_parameters=hnsw_config,
-                     n_processes = config["n_processes"],
-                     upload_batch_size = config["upload_batch_size"],
-                     vector_params= vectors_param,
-                     quantization_config= None if not config["quantization"]["use_quant"] else quantization_params
-                     )
+    return QdrantCli(
+        collection_name=config["collection_name"],
+        collection_url=config["collection_url"],
+        construction_parameters=hnsw_config,
+        n_processes=config["n_processes"],
+        upload_batch_size=config["upload_batch_size"],
+        vector_params=vectors_param,
+        quantization_config=None
+        if not config["quantization"]["use_quant"]
+        else quantization_params,
+    )
+
 
 def prepare_embeddings(embedding_path: str) -> Dataset:
     """
@@ -213,6 +244,7 @@ def prepare_embeddings(embedding_path: str) -> Dataset:
     validate_dataset_format(embedding_dataset)
     return embedding_dataset.select_columns(["index", "embeddings"])
 
+
 def efficient_add_embeddings(qdrant_config: QdrantCli, embedding_data: Dataset) -> None:
     """
     Efficiently embeds the embeddings by disabling the indexing in the Qdrant collection, then adding all the embeddings
@@ -224,6 +256,7 @@ def efficient_add_embeddings(qdrant_config: QdrantCli, embedding_data: Dataset) 
     disable_index_construction(qdrant_config)
     add_embeddings(qdrant_config, embedding_data)
     enable_index_construction(qdrant_config)
+
 
 def create_vector_db(yaml_path: str) -> None:
     """
