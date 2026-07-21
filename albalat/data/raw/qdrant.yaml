@@ -1,0 +1,10 @@
+embeddings_path: "albalat/data/temp/embeddings/"
+collection_name: "test_collection2"
+collection_url: "http://localhost:6333"
+n_processes: 1
+upload_batch_size: 256
+hnsw:
+        m: 16
+        ef_construct: 100
+quantization:
+        use_quant: true

@@ -207,7 +207,7 @@ def parse_yaml(config: dict, embeddings_dim: int) -> QdrantCli:
         m=config["hnsw"]["m"],
         ef_construct=config["hnsw"]["ef_construct"],
     )
-    vectors_param = VectorParams(size=embeddings_dim, distance=Distance.COSINE)
+    vectors_param = VectorParams(size=embeddings_dim, distance=Distance.COSINE, on_disk=True)
 
     scalar_params = ScalarQuantizationConfig(
         type=ScalarType.INT8,
