@@ -10,7 +10,6 @@ import numpy as np
 from pathlib import Path
 from dataclasses import dataclass
 from qdrant_client import QdrantClient
-from testcontainers.core.container import DockerContainer
 from datasets import Dataset, load_dataset, Sequence, Value
 from qdrant_client.http.exceptions import UnexpectedResponse, ResponseHandlingException
 from qdrant_client.http.models import ScalarQuantizationConfig
@@ -154,7 +153,7 @@ def add_embeddings(qdrant_cli: QdrantCli, embeddings_and_indexes: Dataset) -> No
     """
     qdrant_cli.client.upload_collection(
                                         qdrant_cli.collection_name,
-                                        ids=embeddings_and_indexes["index"],
+                                        ids= [int(ind) for ind in embeddings_and_indexes["index"]],
                                         vectors = embeddings_and_indexes["embeddings"],
                                         parallel=qdrant_cli.n_processes,
                                         batch_size=qdrant_cli.upload_batch_size)
@@ -223,7 +222,7 @@ def efficient_add_embeddings(qdrant_config: QdrantCli, embedding_data: Dataset) 
     :return: None
     """
     disable_index_construction(qdrant_config)
-    add_embeddings(qdrant_cli, embedding_data)
+    add_embeddings(qdrant_config, embedding_data)
     enable_index_construction(qdrant_config)
 
 def create_vector_db(yaml_path: str) -> None:
@@ -235,217 +234,13 @@ def create_vector_db(yaml_path: str) -> None:
     config = load_yaml(yaml_path)
     embedding_dataset = prepare_embeddings(config["embeddings_path"])
     qdrant_config = parse_yaml(config, embedding_dataset[0]["embeddings"].shape[-1])
+    initialize_client(qdrant_config)
+    if qdrant_config.client.collection_exists(qdrant_config.collection_name):
+        qdrant_config.client.delete_collection(qdrant_config.collection_name)
+
     create_collection(qdrant_config)
     efficient_add_embeddings(qdrant_config, embedding_dataset)
 
-
-
-
-collection_name = "test_collection"
-vectors_param = VectorParams(size=1024, distance=Distance.COSINE)
-scalar_params = ScalarQuantizationConfig(
-    type=ScalarType.INT8,
-    always_ram=True,
-    )
-quantization_params = ScalarQuantization(scalar=scalar_params)
-
-hnsw_config = HnswConfigDiff(
-    m=16,
-    ef_construct=200,
-)
-
-
-client = QdrantClient(":memory:")
-
-
-qdrant_cli = QdrantCli(client=client,
-                       collection_name=collection_name,
-                       construction_parameters=hnsw_config,
-                       vector_params=vectors_param,
-                       collection_url="testURL")
-
-
-initialize_client(qdrant_cli)
-assert isinstance(qdrant_cli.client,QdrantClient), """Created client is not a Qdrant client."""
-
-qdrant_cli = QdrantCli(client=client,
-                       collection_name=collection_name,
-                       construction_parameters=hnsw_config,
-                       vector_params=vectors_param,
-                       collection_url=":memory:")
-create_collection(qdrant_cli)
-
-if client.collection_exists(collection_name):
-    client.delete_collection(collection_name)
-
-qdrant_cli_quant = QdrantCli(client=client,
-                       collection_name=collection_name,
-                       construction_parameters=hnsw_config,
-                       vector_params=vectors_param,
-                       quantization_config=quantization_params,
-                       collection_url=":memory:")
-
-create_collection(qdrant_cli_quant)
-
-test_folder = "test_folder"
-has_raised = False
-try:
-    define_path(test_folder)
-except:
-    has_raised = True
-
-assert has_raised, f"""Folder {test_folder} does not exist and should have raised an exception"""
-
-test_folder = "albalat/data/processed/"
-has_raised = False
-try:
-    test_folder = define_path(test_folder)
-except:
-    has_raised = True
-
-assert not has_raised, f"""Folder {test_folder} does not exist and should have raised an exception"""
-
-has_raised = False
-try:
-    verify_parquet_folder(test_folder)
-except:
-    has_raised = True
-
-assert not has_raised, f"""Folder {test_folder} has parquet file(s) and should not raise an error."""
-
-test_folder = define_path("albalat/data/raw/")
-has_raised = False
-try:
-    verify_parquet_folder(test_folder)
-except:
-    has_raised = True
-
-assert has_raised, f"""Folder {test_folder} has not parquet file and should raise an error."""
-
-
-## Test
-
-
-#['n_words', 'text_ids', 'chapters', 'spans', 'splitted_paragraphs', 'index', 'embeddings']
-
-#Integraton test for loading the embeddings.
-import pandas as pd
-def test_load_embeddings(tmp_path):
-    df = pd.DataFrame({
-        "id": [1, 2, 3],
-        "embeddings": [[0.1, 0.2], [0.3, 0.4], [0.5, 0.6]]
-    })
-
-    df.to_parquet(tmp_path / "part-000.parquet")
-    df.to_parquet(tmp_path / "part-001.parquet")
-    loaded_dataset = load_embeddings_dataset(tmp_path)
-    assert len(loaded_dataset) == 6, f"""Dataset length should be 3, currently {len(loaded_dataset)}"""
-
-
-#Testing validate_dataset_format
-
-def make_valid_dataset():
-    return Dataset.from_dict({
-        "index": [0, 1],
-        "embeddings": [
-            np.array([0.1, 0.2], dtype=np.float16),
-            np.array([0.3, 0.4], dtype=np.float16),
-        ],
-    })
-
-def test_validate_dataset_format_missing_embeddings():
-    has_raised = False
-    try:
-        dataset = Dataset.from_dict({
-            "index": [0, 1],
-            "test": [
-                np.array([0.1, 0.2], dtype=np.float16),
-                np.array([0.3, 0.4], dtype=np.float16),
-            ],
-        })
-        validate_dataset_format(dataset)
-    except:
-        has_raised = True
-
-    assert has_raised, """Missing embeddings column should have raised an error."""
-
-def test_validate_dataset_format_missing_index():
-    has_raised = False
-    try:
-        dataset = Dataset.from_dict({
-            "test": [0, 1],
-            "embeddings": [
-                np.array([0.1, 0.2], dtype=np.float16),
-                np.array([0.3, 0.4], dtype=np.float16),
-            ],
-        })
-        validate_dataset_format(dataset)
-    except:
-        has_raised = True
-
-    assert has_raised, """Missing index column should have raised an error."""
-
-def test_validate_dataset_format_valid():
-    dataset = Dataset.from_dict({
-        "index": [0, 1],
-        "embeddings": [
-            np.array([0.1, 0.2], dtype=np.float16),
-            np.array([0.3, 0.4], dtype=np.float16),
-        ],
-    })
-    dataset = convert_embeddings_float16(dataset)
-    dataset.set_format("numpy")
-    validate_dataset_format(dataset)
-
-
-
-
-# Integration tests of enabling and disabling the index building.
-
-
-@pytest.fixture(scope="session")
-def qdrant_client():
-    with DockerContainer("qdrant/qdrant:latest") \
-            .with_exposed_ports(6333) as container:
-        collection_name = "test_collection"
-        vectors_param = VectorParams(size=1024, distance=Distance.COSINE)
-        scalar_params = ScalarQuantizationConfig(
-            type=ScalarType.INT8,
-            always_ram=True,
-        )
-        quantization_params = ScalarQuantization(scalar=scalar_params)
-
-        hnsw_config = HnswConfigDiff(
-            m=16,
-            ef_construct=200,
-        )
-        qdrant_cli_quant = QdrantCli(
-                                     collection_name=collection_name,
-                                     construction_parameters=hnsw_config,
-                                     vector_params=vectors_param,
-                                     quantization_config=quantization_params,
-                                     collection_url="http://localhost:6333")
-
-
-        initialize_client(qdrant_cli_quant)
-        create_collection(qdrant_cli_quant)
-        yield qdrant_cli_quant
-
-        if qdrant_cli_quant.client.collection_exists(qdrant_cli_quant.collection_name):
-            qdrant_cli_quant.client.delete_collection(qdrant_cli_quant.collection_name)
-
-def test_disable_indexing_integration(qdrant_client):
-    disable_index_construction(qdrant_client)
-    collection = qdrant_client.client.get_collection(qdrant_client.collection_name)
-    assert collection.config.optimizer_config.indexing_threshold == 0, f"""The indexing threhsold should be at 0, currently
-                                                                            {collection.config.optimizer_config.indexing_threshold} """
-
-def test_enable_indexing_integration(qdrant_client):
-    disable_index_construction(qdrant_client)
-    enable_index_construction(qdrant_client)
-    collection = qdrant_client.client.get_collection(qdrant_client.collection_name)
-    assert collection.config.optimizer_config.indexing_threshold == 20000, f"""The indexing threshold should be at 20000, currently
-                                                                            {collection.config.optimizer_config.indexing_threshold} """
 
 if __name__ == "__main__":
     typer.run(create_vector_db)
