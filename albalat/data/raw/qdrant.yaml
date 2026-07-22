@@ -6,5 +6,9 @@ upload_batch_size: 256
 hnsw:
         m: 16
         ef_construct: 100
+	on_disk: true
+vectors:
+	on_disk: true
+	datatype: "float16"
 quantization:
         use_quant: true

@@ -121,11 +121,12 @@ class TestEmbeddingsToVectorDB:
 
     def test_parse_yaml(self):
         config = {
-            "hnsw": {"m": 13, "ef_construct": 200},
+            "hnsw": {"m": 13, "ef_construct": 200, "on_disk":True},
             "collection_name": "test_collec",
             "collection_url": "http://localhost:6333",
             "n_processes": 4,
             "upload_batch_size": 200,
+            "vectors":{"on_disk":True, "datatype": "float16"},
             "quantization": {"use_quant": False},
         }
         qdrant_cli = parse_yaml(config, 1024)
@@ -161,6 +162,11 @@ class TestEmbeddingsToVectorDB:
             "hnsw": {
                 "m": 16,
                 "ef_construct": 100,
+                "on_disk": False
+            },
+            "vectors":{
+                "datatype": "float32",
+                "on_disk": False
             },
             "quantization": {
                 "use_quant": True,

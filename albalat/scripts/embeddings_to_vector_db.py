@@ -2,8 +2,8 @@
 This script creates a HNSW vector database using quadrant, based on a database of embeddings.
 
 """
-
 import os
+import time
 import yaml
 import typer
 from pathlib import Path
@@ -19,6 +19,7 @@ from qdrant_client.models import (
     QuantizationConfig,
     ScalarQuantization,
     ScalarType,
+    Datatype
 )
 
 
@@ -206,8 +207,12 @@ def parse_yaml(config: dict, embeddings_dim: int) -> QdrantCli:
     hnsw_config = HnswConfigDiff(
         m=config["hnsw"]["m"],
         ef_construct=config["hnsw"]["ef_construct"],
+        on_disk=config["hnsw"]["on_disk"]
     )
-    vectors_param = VectorParams(size=embeddings_dim, distance=Distance.COSINE, on_disk=True)
+    vectors_param = VectorParams(size=embeddings_dim,
+                                 distance=Distance.COSINE,
+                                 on_disk=config["vectors"]["on_disk"],
+                                 datatype = Datatype.FLOAT16 if config["vectors"]["datatype"] == "float16" else Datatype.FLOAT32)
 
     scalar_params = ScalarQuantizationConfig(
         type=ScalarType.INT8,
@@ -258,6 +263,44 @@ def efficient_add_embeddings(qdrant_config: QdrantCli, embedding_data: Dataset) 
     enable_index_construction(qdrant_config)
 
 
+def wait_indexing(client: QdrantClient, collection_name: str, stable_time: float, poll_time: float) -> None:
+    """
+    Wait for the index to be built: checks every minute if the status is green.
+    :param: qdrant client
+    :param collection_name: name of the collection.
+    :param stable_time: time interval in seconds during which the collection is stable to consider that the index has been built.
+    :param poll_time: time interval, in second, before we check the status of the collection again.
+    :return: None
+    """
+    previous_info = None
+    stable_start = None
+    start_time = time.time()
+    while True:
+        info = client.get_collection(collection_name)
+
+        current_info = (info.status,
+            info.indexed_vectors_count,
+            info.points_count
+        )
+
+        print(
+            "status:", info.status,
+            "indexed vectors count:", info.indexed_vectors_count,
+            "points count:", info.points_count
+        )
+
+        if current_info == previous_info and info.status == "green":
+            if stable_start is None:
+                stable_start = time.time()
+            elif time.time() - stable_start > stable_time:
+                print("Collection stable")
+                break
+
+        previous_info = current_info
+        time.sleep(poll_time)
+
+    print(f"HNSW indexing completed in {time.time() - start_time}")
+
 def create_vector_db(yaml_path: str) -> None:
     """
     Creates and initialize the client, disable the indexing, upload the embeddings and enable the indexing.
@@ -273,6 +316,8 @@ def create_vector_db(yaml_path: str) -> None:
 
     create_collection(qdrant_config)
     efficient_add_embeddings(qdrant_config, embedding_dataset)
+    wait_indexing(qdrant_config.client, qdrant_config.collection_name, stable_time=config["stable_time"],
+                  poll_time=config["poll_time"])
 
 
 if __name__ == "__main__":

@@ -16,11 +16,9 @@ from albalat.scripts.embeddings_to_vector_db import (
 def test_create_vector_db(tmp_path):
     with DockerContainer("qdrant/qdrant:latest").with_exposed_ports(6333) as container:
         embedding_db = {
-            "index": [0, 1, 2],
+            "index": [i for i in range(25000)],
             "embeddings": [
-                np.random.normal(size=1024),
-                np.random.normal(size=1024),
-                np.random.normal(size=1024),
+                np.random.normal(size=1024) for _ in range(25000)
             ],
         }
 
@@ -31,6 +29,8 @@ def test_create_vector_db(tmp_path):
         host = container.get_container_host_ip()
         port = container.get_exposed_port(6333)
         config = {
+            "poll_time": 30,
+            "stable_time": 120,
             "embeddings_path": str(tmp_path),
             "collection_name": "test_collection3",
             "collection_url": f"http://{host}:{port}",
@@ -39,6 +39,11 @@ def test_create_vector_db(tmp_path):
             "hnsw": {
                 "m": 16,
                 "ef_construct": 100,
+                "on_disk": True
+            },
+            "vectors": {
+                "datatype": "float16",
+                "on_disk": False
             },
             "quantization": {
                 "use_quant": True,
@@ -66,6 +71,8 @@ def test_add_embeddings(tmp_path):
         port = container.get_exposed_port(6333)
         dataset = Dataset.from_dict(embedding_db)
         config = {
+            "poll_time": 1,
+            "stable_time": 1,
             "embeddings_path": str(tmp_path),
             "collection_name": "test_collection",
             "collection_url": f"http://{host}:{port}",
@@ -74,6 +81,11 @@ def test_add_embeddings(tmp_path):
             "hnsw": {
                 "m": 16,
                 "ef_construct": 100,
+                "on_disk": False
+            },
+            "vectors": {
+                "datatype": "float16",
+                "on_disk": False
             },
             "quantization": {
                 "use_quant": True,
