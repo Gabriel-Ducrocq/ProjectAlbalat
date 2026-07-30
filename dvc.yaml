@@ -21,3 +21,9 @@ stages:
     - albalat/scripts/run_embedding.sh
     outs:
     - albalat/data/processed/embeddings/
+  embeddings_to_qdrant:
+    cmd: bash albalat/data/raw/embeddings_to_qdrant.sh
+    deps:
+    - albalat/data/raw/qdrant.yaml
+    outs:
+    - albalat/data/processed/qdrant_storage/collectionsv1_m_16_efConstruct_100/

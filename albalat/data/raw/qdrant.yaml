@@ -1,14 +1,16 @@
-embeddings_path: "albalat/data/temp/embeddings/"
-collection_name: "test_collection2"
+stable_time: 3600
+poll_time: 60
+embeddings_path: "albalat/data/processed/embeddings/"
+collection_name: "v1_m_16_efConstruct_100"
 collection_url: "http://localhost:6333"
-n_processes: 1
-upload_batch_size: 256
+n_processes: 2
+upload_batch_size: 1000
 hnsw:
         m: 16
         ef_construct: 100
-	on_disk: true
+        on_disk: true
 vectors:
-	on_disk: true
-	datatype: "float16"
+        on_disk: true
+        datatype: "float16"
 quantization:
         use_quant: true
