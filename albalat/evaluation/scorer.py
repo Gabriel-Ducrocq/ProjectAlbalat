@@ -1,12 +1,40 @@
+"""
+This file contains the class for computing the Context relevance of the RAG triad.
+Since we have no annotated data set, we use a LLM-as-a-judge framework to evaluate how much the context is relevant.
+
+Contrary to e.g RAGAS, the retrieved chunks are not aggregated together into a single context for grading, as we want
+to evaluate each chunk separately against the query. Instead, the LLM score each chunk against the query.
+We use the OpenAI API for grading.
+
+For robustness, the same LLM is used to times to grade each chunk, with two different prompts. It is tasked to grade
+the semantic and narrative similarity between the chunk and the query, giving:
+- 0 if they are not semantically and narratively similar to each other.
+- 1 if they are partially semantically and narratively similar to each other.
+- 2 if they are semantically and narratively similar to each other.
+
+For each chunk, the scores output by the two LLMs are averaged to give the final score.
+"""
+
 import asyncio
 from collections.abc import Iterable
 from albalat.evaluation.models import Score
 from albalat.evaluation.models import OpenAIScorerConfig
 
 
-class OpenAIScorer():
+def average_scores(scores: tuple[Score, Score]) -> dict[str, float]:
+    """
+    Averages the scores of all the judges for a single context and keeping them.
+    """
+    average = sum(score.rating for score in scores) / len(scores)
+    grades = {f"judge{i}": float(score.rating) for i, score in enumerate(scores)}
+    grades.update({"average": average})
+    return grades
+
+
+class OpenAIScorer:
     """
     Uses the OpenAI API to score the retrieved chunks against the query chunks.
+
     We use the same LLM with two different prompts, for robustness, following RAGAS.
     """
 
@@ -42,7 +70,7 @@ class OpenAIScorer():
         queriesJudge2 = self.create_queries_unique_prompt(query, chunks, 2)
         return queriesJudge1, queriesJudge2
 
-    async def get_scores(self, queriesJudge, temperature=0.1):
+    async def get_scores(self, queriesJudge, temperature=0.1)-> Score:
         """
         Actually sends the full prompt to openAI.
         """
@@ -59,23 +87,14 @@ class OpenAIScorer():
         json_grade = Score.model_validate_json(response.choices[0].message.content)
         return json_grade
 
-    def average_scores(self, scores: tuple[str, str]) -> dict[str, float]:
-        """
-        Average the scores of all the judges for a single context and keeping them.
-        """
-        average = sum(score.rating for score in scores) / len(scores)
-        grades = {f"judge{i}": score.rating for i, score in enumerate(scores)}
-        grades.update({"average": average})
-        return grades
-
-    def process_responses(self, score_judges_1_2: Iterable[tuple[str, str]]) -> list[float]:
+    def process_responses(self, score_judges_1_2: Iterable[tuple[Score, Score]]) -> list[dict[str, float]]:
         """
         Average the scores for each context given by the two judges
         """
-        average_scores = [self.average_scores(scores_1_2) for scores_1_2 in score_judges_1_2]
-        return average_scores
+        averaged_scores = [average_scores(scores_1_2) for scores_1_2 in score_judges_1_2]
+        return averaged_scores
 
-    async def query_openai(self, query: str, chunks: list[str]) -> list[float]:
+    async def query_openai(self, query: str, chunks: list[str]) -> list[dict[str, float]]:
         """
         Queries the self.llm from OpenAI API, with all the pairs (query, chunks), with two prompts each.
         """
