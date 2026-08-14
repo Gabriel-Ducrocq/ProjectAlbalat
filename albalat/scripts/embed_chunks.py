@@ -27,7 +27,6 @@ class encodingParameters:
     normalize_embeddings: bool = True
     batched: bool = True
 
-
 def get_device(local_rank: int = 0) -> str:
     """
     Gets the device, either cuda, mps or cpu.

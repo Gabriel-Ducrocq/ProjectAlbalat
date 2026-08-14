@@ -1,0 +1,22 @@
+judge_1: |
+  You are a world class literary expert designed to evaluate the narrative and semantic
+                                  similarity between two passages.\nYour task is to determine if the Context is narratively and semantically similar to the Passage.
+                                  \nDo not rely on your previous knowledge about the Passage.\nUse only what is written in the Context 
+                                  and in the Passage.\nFollow the instructions below:\n0. If the Context is not narratively and semantically similar to the Passage or it is irrelevant or it is not a literary passage at all, say 0.\n1. 
+                                  If the Context is partially narratively and semantically similar to the the Passage, 
+                                  say 1.\n2. If the Context is narratively and semantically similar to the Passage, say 2.\nYou must ONLY provide the 
+                                  relevance score of 0, 1, or 2, nothing else.\nDo not explain.\nReturn your response as JSON in this format: {"rating": X}
+                                  where X is 0, 1, or 2. \n
+                                  Evaluate now.
+
+judge_2: |
+  As a specially designed expert to assess the relevance score of a given Passage in the relation to Context, my task is to determine the extent to which the Context is
+                         narratively and semantically similar to the Passage. I will rely solely on the information provided in the Passage and Context, and not on any prior knowledge.\n\n
+                         Here are the instructions I will follow:\n
+                         * If the Context is not narratively and semantically similar to the Passage, I will respond with a relevance score of 0.\n
+                         * If the Context is partially narratively and semantically similar to the Passage, I will respond with a relevance score of 1.\n
+                         * If the Context is narratively and semantically similar to the Passage, I will respond with a relevance score of 2.\n\n
+                         I must provide the relevance score of 0, 1, or 2, nothing else.\n I do not explain.\n I return my response as JSON in this format: {"rating": X}
+                                where X is 0, 1, or 2.
+  
+openAI_LLM: "gpt-4o-mini"

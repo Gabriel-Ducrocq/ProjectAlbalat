@@ -322,3 +322,5 @@ def create_vector_db(yaml_path: str) -> None:
 
 if __name__ == "__main__":
     typer.run(create_vector_db)
+
+

@@ -1,10 +1,10 @@
 """
 This script takes the dataset of paragraphs obtained by the script books_to_paragraphs.py and cut the paragraphs into
-chunks. Too small paragraphs are
+chunks.
 The chunking strategy is the following, in order:
 - First, If paragraphs are two small, aggregate them until they reach a minimum number of words. The rules for chunking are:
     1/ Aggregate only paragraphs from the same book and,
-    2/ Aggregate only paragraphs from the ame chapter and,
+    2/ Aggregate only paragraphs from the same chapter and,
     3/ Aggregate only paragraphs that follow each other and,
     4/ Aggregate them until the aggregate exceeds a minimum number of words.
 - Second, ensure that paragraphs are not over a maximum number of words. If one paragraph has more words than the

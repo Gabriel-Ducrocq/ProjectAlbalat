@@ -2,21 +2,27 @@
 This script processes the "common-pile/project_gutenberg" Hugging Face dataset.
 Several steps are involved:
 1/ Download the Gutenberg project catalog.
-2/ Keep only the books in English
-3/ Keep only the books belonging to specific bookshelves (genres)
+2/ Keep only the books in English.
+3/ Keep only the books belonging to specific bookshelves (genres), see the GENRES_KEPT variable for a list of kept genres.
 4/ Use this list to keep the corresponding texts in the "common-pile/project_gutenberg" dataset
 5/ Chunk each book into paragraphs:
     1. Normalize text
     2. Break text into paragraphs.
     3. Remove dialogues, footnotes, transcriber's notes.
-    4. Keeps track of the chapterization
+    4. Keeps track of the chapterization.
 
 The output of this script is Hugging Face dataset in Parquet format where each row is a
 paragraph and colums are:
 - text_id: identifier of the text
 - paragraph: actual text
 - span: starting and ending character numbers of the paragraph in the original text
-- chapter: chapter number in which the paragraph occurs if relevent.
+- chapter: chapter number in which the paragraph occurs if relevant.
+
+Usage:
+python albalat/scripts/books_to_paragraphs.py path/to/parquet_to_save
+
+See the books_to_paragraphs function for a list of parameters.
+
 """
 
 import re
