@@ -21,14 +21,38 @@ from albalat.evaluation.models import Score
 from albalat.evaluation.models import OpenAIScorerConfig
 
 
-def average_scores(scores: tuple[Score, Score]) -> dict[str, float]:
+def average_scores(scores: tuple[Score,...]) -> dict[str, float]:
     """
-    Averages the scores of all the judges for a single context and keeping them.
+    Averages the scores of all the judges for a single context and keeping them. The returned dict is in the format:
+        {"judge1": rating1, "judge2": rating2, ..., "judgeN": ratingN, "average": mean(scores)}
+    :param scores: tuple of Scores objects containing the scores of each LLM judge for the same chunk.
+    return: dictionary containing the score of each judge as well as the average.
     """
     average = sum(score.rating for score in scores) / len(scores)
-    grades = {f"judge{i}": float(score.rating) for i, score in enumerate(scores)}
+    grades = {f"judge{i+1}": float(score.rating) for i, score in enumerate(scores)}
     grades.update({"average": average})
     return grades
+
+def process_responses(score_judges_1_2: Iterable[tuple[Score, Score]]) -> list[dict[str, float]]:
+    """
+    Average the scores for each context in a list given by the two judges.
+    :param score_judges_1_2: list of tuples containing the scores of all the LLM judges, for each chunk.
+    return: a list of dictionary, one for each chunk, each containing the score of each LLM and the average score. See
+            the definition of the process_responses function.
+    """
+    averaged_scores = [average_scores(scores_1_2) for scores_1_2 in score_judges_1_2]
+    return averaged_scores
+
+def create_queries_unique_prompt(query: str, chunks:list[str], prompt: str)-> list[str]:
+    """
+    Create the queries corresponding to a unique prompt, using either prompt judge 1 or 2 and a set of chunks.
+    :param query: query.
+    :param chunks: a list of chunks.
+    :param prompt: prompt used as instructions for the judge LLM.
+    return: a list of the prompts to send to the OpenAI api.
+    """
+    all_openai_query = [f"""Passage: {query}\n\nContext:{chunk}\n\n {prompt}""" for chunk in chunks]
+    return all_openai_query
 
 
 class OpenAIScorer:
@@ -47,28 +71,13 @@ class OpenAIScorer:
         self.prompt1 = openai_api_config.judge_1
         self.prompt2 = openai_api_config.judge_2
 
-    def create_queries_unique_prompt(self, query, chunks, prompt_id):
-        """
-        Create the queries corresponding to a unique prompt.
-        """
-        if prompt_id not in (1, 2):
-            raise ValueError(f"""prompt_id must be 1 or 2, currently {prompt_id}""")
-
-        if prompt_id == 1:
-            prompt = self.prompt1
-        else:
-            prompt = self.prompt2
-
-        all_openAIQuery = [f"""Passage: {query}\n\nContext:{chunk}\n\n {prompt}""" for chunk in chunks]
-        return all_openAIQuery
-
     def create_queries(self, query, chunks):
         """
         Create the queries by inserting the query and the chunks in both prompts.
         """
-        queriesJudge1 = self.create_queries_unique_prompt(query, chunks, 1)
-        queriesJudge2 = self.create_queries_unique_prompt(query, chunks, 2)
-        return queriesJudge1, queriesJudge2
+        queries_judge1 = create_queries_unique_prompt(query, chunks, self.prompt1)
+        queries_judge2 = create_queries_unique_prompt(query, chunks, self.prompt2)
+        return queries_judge1, queries_judge2
 
     async def get_scores(self, queriesJudge, temperature=0.1)-> Score:
         """
@@ -87,13 +96,6 @@ class OpenAIScorer:
         json_grade = Score.model_validate_json(response.choices[0].message.content)
         return json_grade
 
-    def process_responses(self, score_judges_1_2: Iterable[tuple[Score, Score]]) -> list[dict[str, float]]:
-        """
-        Average the scores for each context given by the two judges
-        """
-        averaged_scores = [average_scores(scores_1_2) for scores_1_2 in score_judges_1_2]
-        return averaged_scores
-
     async def query_openai(self, query: str, chunks: list[str]) -> list[dict[str, float]]:
         """
         Queries the self.llm from OpenAI API, with all the pairs (query, chunks), with two prompts each.
@@ -103,7 +105,7 @@ class OpenAIScorer:
             asyncio.gather(*(self.get_scores(q) for q in queriesJudge1)),
             asyncio.gather(*(self.get_scores(q) for q in queriesJudge2)),
         )
-        averaged_scores = self.process_responses(zip(scores1, scores2))
+        averaged_scores = process_responses(zip(scores1, scores2))
         return averaged_scores
 
 
